@@ -26,6 +26,7 @@ An event names a story by its bare id; `<milestone>` below is the milestone that
 | `PERMISSION-CLEARED <id>` | `status: "working"`, `needsYou: null` |
 | `SYNCED <who> <summary>` | another person's saved progress arrived: report it in one line |
 | `REVIEWED <milestone> [<repo>]#<n> by=<who>` | a colleague ticked Looked at it on your draft PR: tell the user in one line, read the PR's review (`gh pr view <n> --comments`) and offer to address it, or to mark it ready when nothing is left |
+| `UNSYNCED <milestone> <path> <why>` | a document of your milestone can never sync (outside the run dir, a `.py`, or excluded): move or copy it into the run dir and point the reference at it (`podium set milestone:<milestone> artifacts.<n>.path=<new path>`, or `brief=`/`spec=`/`archive=`) |
 
 With a milestone's `buildAll` on, its next wave starts when every story of its current wave is merged.
 
