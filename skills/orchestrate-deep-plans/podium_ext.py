@@ -1833,7 +1833,7 @@ def cmd_turn(p, args):
         print(line)
     cmd_status(p, [])
     url, info = podium_url(p)
-    print(f"PODIUM up {url} " + ("watching" if info.get("watching") else "not watching") if url else "PODIUM down")
+    print(f"PODIUM up {info.get('lan') or url} " + ("watching" if info.get("watching") else "not watching") if url else "PODIUM down")
     if links_asana(p):
         for line in asana_lines(p):
             print(line)

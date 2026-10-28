@@ -1330,9 +1330,9 @@ class TwoMilestones(Run):
     def test_peek_finds_a_bare_story_of_the_one_milestone_that_has_it(self):
         self.assertEqual(self.podium("peek", "T1"), "M2/T1 todo · progress - · gates - · agent - · commit -\n")
 
-    def serve(self):
+    def serve(self, lan=None):
         """A Podium on a free port that knows this run and releases hand-offs, its URL in server.log as the
-        server writes it."""
+        server writes it; `lan` its LAN URL, as `--lan` gives one."""
         run_dir, handoffs = self.run_dir, os.path.join(self.run_dir, "podium", "handoffs.json")
 
         class Handler(BaseHTTPRequestHandler):
@@ -1345,7 +1345,7 @@ class TwoMilestones(Run):
                 self.wfile.write(data)
 
             def do_GET(self):
-                self.answer({"runDir": run_dir, "watching": True})
+                self.answer({"runDir": run_dir, "watching": True, **({"lan": lan} if lan else {})})
 
             def do_DELETE(self):
                 with open(handoffs) as f:
@@ -1385,6 +1385,10 @@ class TwoMilestones(Run):
         self.assertEqual(self.handoffs(), {})
         self.assertIn(f"PODIUM up {url} watching", self.podium("turn").splitlines())
 
+
+    def test_the_turn_names_the_lan_url_of_a_podium_serving_the_lan(self):
+        self.serve(lan="http://192.168.1.5:8765/")
+        self.assertIn("PODIUM up http://192.168.1.5:8765/ watching", self.podium("turn").splitlines())
 
 class Untrusted(Run):
     """Values a pull may have written into podium.json: none becomes a path outside the run's own or a git option."""
