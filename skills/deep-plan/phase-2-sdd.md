@@ -12,4 +12,6 @@ Invoke the `speckit-custom-plan-tdd-sdd` skill, seeded with `spec-brief.md`, the
 
 speckit unavailable → run the equivalent steps inline, or `/to-spec` + `/to-tickets`.
 
+8. **Plan page:** with the `plan-summary` skill installed, write the page it describes from `spec-brief.md`, `architecture.md` and `tasks.md` to `.deep-plan/plan.html`. The record is those files, so skip its `~/.claude/plans` paths, and don't publish it: the page stays on this machine. Under `/orchestrate-deep-plans` the Podium hosts the run dir, so register it as an artifact (`podium set milestone:<id> 'artifacts+={"phase":"stories","name":"Plan","path":"plan.html"}'`) and give its Podium URL with the checkpoint; otherwise give its path for `open`. A mobile user gets a screenshot of it instead. Without the skill, skip this step.
+
 Checkpoint.

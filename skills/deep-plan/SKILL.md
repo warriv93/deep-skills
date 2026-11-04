@@ -22,6 +22,7 @@ The **ledger** is `.deep-plan/state.md`: current phase, one line per slice (`- [
 | `architecture.draft.md` | Phase 0, background (optional) |
 | `architecture.md` | Phase 1 |
 | `contract.cmds` | Phase 1: the pinned contract, one gate per line |
+| `plan.html` | Phase 2: the page to decide from, with `plan-summary` installed |
 | `contract.logs/` | one log per gate, from every contract run (overwritten) |
 | `findings-phase-3.md`, `findings-phase-4.md`, `findings-phase-4-review.md` | `/deep-qa` at that gate |
 
