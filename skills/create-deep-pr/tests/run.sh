@@ -14,6 +14,7 @@ hasnt() { if grep -qE -- "$2" <<<"$3"; then fail "$1"; echo "  unwanted /$2/ in:
 code() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (exit $3, wanted $2)"; fi; }
 
 bash -n "$P" && pass "syntax push-preview.sh" || fail "syntax push-preview.sh"
+bash -n "$here/scripts/copilot-review.sh" && pass "syntax copilot-review.sh" || fail "syntax copilot-review.sh"
 
 git init -q --bare "$T/remote.git"
 w="$T/work"; git clone -q "$T/remote.git" "$w" 2>/dev/null; cd "$w"
