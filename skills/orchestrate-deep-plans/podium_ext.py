@@ -962,7 +962,7 @@ def story_prompt(p, m, s, retry=None):
     """phase-3-build.md's story prompt (its single source), filled in for one story."""
     with open(PHASE_3) as f:
         template = re.search(r"Story prompt[^\n]*\n+```\n(.*?)\n```", f.read(), re.S).group(1)
-    trees = "\n".join(f"{r}: {t}" for r, _, t, _ in story_trees(p, m, s))
+    trees = "\n".join(f"{r}: {t}" + (f" (milestone branch {b})" if b else "") for r, _, t, b in story_trees(p, m, s))
     text = (template.replace(" <repo>: <path>, one per line.", "\n" + trees).replace("<podium>", podium_cli(p.root))
             .replace("<podium dir>", podium_dir(p.root)).replace("<milestone>", safe_id(m["id"])).replace("<id>", s["id"]))
     return text + (f"\n\nPrevious attempt failed: {retry}" if retry else "")

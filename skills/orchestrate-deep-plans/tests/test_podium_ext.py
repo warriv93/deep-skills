@@ -1482,6 +1482,8 @@ class Prompts(Run):
         assign = ext.prompt(p, "assign", "S1")
         self.assertTrue(assign.startswith("You build one story of an epic, alone, in this worktree, on branch story/S1:"))
         self.assertNotIn("worktree add", assign)
+        self.assertIn(f"core: {self.main}-S1 (milestone branch {self.milestone()['branch']})", assign)
+        self.assertIn("rebase story/S1 onto the milestone branch", assign)
         self.assertEqual(ext.prompt(p, "plan", "M2"), "/orchestrate-deep-plans M2")
 
     def test_an_unknown_story_or_kind_has_no_prompt(self):
