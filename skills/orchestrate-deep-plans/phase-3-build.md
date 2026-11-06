@@ -57,6 +57,7 @@ Done when the target's `domainStories.status` is `ready` and its folder is commi
 - `LAUNCHED <id> paseo agent=… model=…`: a Paseo agent runs it in auto mode (dispatcher `paseo`).
 - `PROMPT <file> model=<model>`: dispatcher `agent`. Start `Agent` with `run_in_background: true`, that model, and the file's text as the prompt; it works in the worktree by path. Record its task id: `podium set <milestone>/<id> agent.id=<task id>`.
 - `SKIP <id> <why>`: not ready, nothing done. `FAILED <id> <why>`: nothing recorded and its worktree undone; fix what the line names, or ask the user.
+- `INSTALL-FAILED <id> <repo>: <why>`: the milestone's `quality.install` failed in that worktree (all of a launch's installs run at once), so nothing is recorded and its worktree is undone. It is not a failed attempt: the cause is the environment or the install command, never the story. Read `<podium dir>/stories/<milestone>/<id>.<repo>.install.log`, fix the cause (network, registry, lockfile, the command itself), and launch the story again without `--retry`; one you can't fix → ask the user.
 - `DISPATCHER agent (podium dispatcher paseo to use Paseo)`: this machine had no dispatcher for the synced run, so launch used `agent`. Record the choice (SKILL.md, Dispatcher) before the next launch.
 
 Story prompt (`launch` and the Podium's hand-off fill in its `<…>`; `<podium>` becomes the `podium` call with the run's `--dir`):
@@ -78,6 +79,7 @@ Stay inside the brief's files in scope and on branch story/<id>. Never push; the
 
 - **`CONFLICT <id> 1`** → tell its agent to rebase `story/<id>` onto the milestone branch, re-run the contract and log `COMMITTED <new sha>`. **`CONFLICT <id> 2`** → a failed attempt.
 - **`RED`** → the merge is undone; a failed attempt, with the printed log tail as its reason.
+- **`INSTALL-FAILED <id> <cmd>`** → the merge is undone, and the printed log tail shows why the milestone's `quality.install` failed. Not a failed attempt: leave the story and its agent alone, fix the cause as at Dispatch, and merge again.
 - **`CONTRACT-CHANGED <digest> <repo>: <cmd>`** → nothing merged: a contract command this machine hasn't approved, new or changed by a pull. Show the user the command; only on their yes `podium approve <digest>` (`podium approve all` only on a yes to every line `podium approve` lists), then merge again.
 - **`MERGED`** → `--land` **retires** the story (`podium land <milestone>/<id> --next` alone does the same for a story merged without it): it archives its Paseo workspace and agent, removes its worktree, renames `story/<id>` to `archive/<milestone>/story/<id>` and releases a hand-off. With its milestone's `buildAll` on and that milestone's wave complete it launches the milestone's stories now ready: `LANDED <id>; launched <ids>`, then a line per `PROMPT` (Dispatch) or failure. `KEPT <path>: <why>` → that worktree has changes git won't drop: look at them before removing it. `KEPT story/<id> in <repo>: <why>` → that branch wasn't archived, so the next `story/<id>` can't branch: archive it by hand once its work is safe. A subagent still running → `TaskStop`.
 

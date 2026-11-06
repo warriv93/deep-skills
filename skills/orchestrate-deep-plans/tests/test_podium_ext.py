@@ -218,6 +218,28 @@ class Merge(Run):
         self.assertEqual(git(self.feature, "rev-parse", "HEAD"), before)
         self.assertEqual(self.milestone()["stories"][0]["status"], "todo")
 
+    def test_installs_the_dependencies_before_the_contract(self):
+        m = self.data["epics"][0]["milestones"][0]
+        m["quality"]["install"] = {"cmd": "echo deps > installed.txt"}
+        m["quality"]["contract"] = [{"cmd": "test -f installed.txt"}]
+        self.write()
+        commit(self.story_branch("S1"), "s.txt", "feat: one")
+        self.assertTrue(self.podium("merge", "S1").startswith("MERGED S1 1 commits"))
+        self.assertEqual([c["ok"] for c in self.milestone()["quality"]["contract"]], [True])
+
+    def test_a_failed_install_undoes_the_merge_as_its_own_outcome(self):
+        m = self.data["epics"][0]["milestones"][0]
+        m["quality"]["install"] = {"cmd": "echo offline; exit 1"}
+        m["stories"][0].update(status="working", attempts=1)
+        self.write()
+        before = git(self.feature, "rev-parse", "HEAD")
+        commit(self.story_branch("S1"), "s.txt", "feat: one")
+        out = self.podium("merge", "S1", code=4)
+        self.assertEqual(out.splitlines(), ["INSTALL-FAILED S1 echo offline; exit 1", "$ echo offline; exit 1", "offline"])
+        self.assertEqual(git(self.feature, "rev-parse", "HEAD"), before)
+        s = self.milestone()["stories"][0]
+        self.assertEqual((s["status"], s["attempts"]), ("working", 1))
+
     def test_an_unsynced_run_runs_its_contract_without_approval(self):
         marker = os.path.join(self.tmp, "ran")
         self.data["epics"][0]["milestones"][0]["quality"]["contract"] = [{"cmd": f"echo >> {marker}"}]
@@ -268,6 +290,14 @@ class MergeQueue(Run):
         self.assertEqual(out.splitlines(), ["MERGED S1 1 commits; ready: -", "LANDED S1",
                                             "STOPPED S9 ERROR: no story 'S9' in M1", "PENDING S3"])
         self.assertEqual(self.statuses(), ["done", "working", "working", "todo"])
+
+    def test_a_failed_install_stops_the_queue_as_its_own_outcome(self):
+        self.data["epics"][0]["milestones"][0]["quality"]["install"] = {"cmd": "test ! -f S1.txt"}
+        self.write()
+        out = self.podium("merge", "S1", "S2", "--land", code=4)
+        self.assertEqual(out.splitlines(), ["INSTALL-FAILED S1 test ! -f S1.txt", "$ test ! -f S1.txt",
+                                            "STOPPED S1 INSTALL-FAILED", "PENDING S2"])
+        self.assertEqual(self.statuses(), ["working", "working", "working", "todo"])
 
     def test_a_single_story_without_land_merges_as_before(self):
         self.assertEqual(self.podium("merge", "S1"), "MERGED S1 1 commits; ready: -\n")
@@ -344,6 +374,13 @@ class Contracts(Run):
 
     def contract(self, *cmds):
         self.podium("set", "milestone:M1", "quality.contract=" + json.dumps([{"cmd": c} for c in cmds]))
+
+    def test_an_install_command_needs_approval_like_the_contract(self):
+        self.podium("approve", "all")
+        install = f"echo installed >> {self.marker}"
+        self.podium("set", "milestone:M1", "quality.install=" + json.dumps({"cmd": install}))
+        self.refused_merge(install)
+        self.assertEqual(self.podium("approve"), f"PENDING {short(install)} core: {ascii(install)}\n")
 
     def test_approves_only_the_commands_it_names(self):
         other = "echo other"
@@ -1020,6 +1057,47 @@ class Launch(Run):
         self.assertIn(f"core: {tree}", text)
         self.assertIn(f"{self.run_dir}/podium/stories/M1/S1.progress", text)
         self.assertEqual([e["type"] for e in self.events()], ["dispatched"])
+
+    def test_installs_the_dependencies_in_the_new_worktree(self):
+        self.data["epics"][0]["milestones"][0]["quality"]["install"] = {"cmd": "echo deps > installed.txt"}
+        self.write()
+        self.assertTrue(self.podium("launch", "S1").startswith("PROMPT "))
+        with open(os.path.join(f"{self.main}-S1", "installed.txt")) as f:
+            self.assertEqual(f.read(), "deps\n")
+
+    def test_a_failed_install_undoes_the_worktree_and_records_nothing(self):
+        self.data["epics"][0]["milestones"][0]["quality"]["install"] = {"cmd": "echo no lockfile; exit 1"}
+        self.write()
+        self.assertEqual(self.podium("launch", "S1").strip(), "INSTALL-FAILED S1 core: no lockfile")
+        self.assertFalse(os.path.exists(f"{self.main}-S1"))
+        s = self.milestone()["stories"][0]
+        self.assertEqual((s["status"], s["attempts"]), ("todo", 0))
+        self.assertEqual(self.events(), [])
+        self.assertEqual(git(self.main, "branch", "--list", "story/S1"), "")
+
+    def test_installs_a_wave_at_once(self):
+        arrived = os.path.join(self.tmp, "arrived")
+        os.makedirs(arrived)
+        m = self.data["epics"][0]["milestones"][0]
+        m["stories"][1]["deps"] = []
+        m["quality"]["install"] = {"cmd": f"touch {arrived}/\"$(basename \"$PWD\")\"; for i in $(seq 100); do "
+                                          f"[ $(ls {arrived} | wc -l) -ge 2 ] && exit 0; sleep 0.1; done; echo alone; exit 1"}
+        self.write()
+        self.assertEqual([l.split()[0] for l in self.podium("launch", "S1", "S2").splitlines()], ["PROMPT", "PROMPT"])
+        self.assertEqual(sorted(os.listdir(arrived)), ["core-S1", "core-S2"])
+
+    def test_a_failed_install_undoes_only_its_own_story_of_the_wave(self):
+        m = self.data["epics"][0]["milestones"][0]
+        m["stories"][1]["deps"] = []
+        m["quality"]["install"] = {"cmd": "case \"$PWD\" in *-S2) echo registry down; exit 1;; esac"}
+        self.write()
+        out = self.podium("launch", "S1", "S2").splitlines()
+        self.assertEqual(out[1:], ["INSTALL-FAILED S2 core: registry down"])
+        self.assertTrue(out[0].startswith("PROMPT "))
+        self.assertTrue(os.path.isdir(f"{self.main}-S1"))
+        self.assertFalse(os.path.exists(f"{self.main}-S2"))
+        self.assertEqual([(s["status"], s["attempts"]) for s in self.milestone()["stories"]], [("working", 1), ("todo", 0)])
+        self.assertEqual([e["story"] for e in self.events()], ["S1"])
 
     def paseo(self):
         log = os.path.join(self.tmp, "paseo.log")

@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from podium_dashboard import human, sync
@@ -27,6 +28,7 @@ UTC = lambda epoch: datetime.fromtimestamp(int(epoch), timezone.utc).isoformat()
 GENERATED = {"planned", "commit", "landed"}
 DISPATCHERS = ("paseo", "agent")
 CLOSED = ("done", "dropped", "moved")
+INSTALLS = 8
 
 
 def configured_findings_remote():
@@ -217,6 +219,25 @@ def contract_line(p, c):
     return f"{digest(c['cmd'])[:12]} {contract_repo(p, c)}: {ascii(str(c['cmd']))}"
 
 
+def install_step(m):
+    """[{"cmd"}] of the milestone's quality.install, the project's dependency install, or [] when it has none."""
+    c = (m.get("quality") or {}).get("install")
+    return [c] if isinstance(c, dict) and c.get("cmd") else []
+
+
+def run_logged(cmd, cwd, log):
+    """Run `cmd` in `cwd`, appending `$ <cmd>` and its output to `log`: whether it exited 0."""
+    with open(log, "a") as f:
+        f.write(f"$ {cmd}\n")
+        f.flush()
+        return subprocess.run(cmd, shell=True, cwd=cwd, stdout=f, stderr=subprocess.STDOUT).returncode == 0
+
+
+def log_tail(log):
+    with open(log) as f:
+        return "\n".join(f.read().splitlines()[-40:])
+
+
 def require_approved(p, contract):
     """Print `CONTRACT-CHANGED <short digest> <repo>: <cmd>` for each command of `contract` this machine hasn't
     approved and exit 1 when there is one."""
@@ -301,7 +322,7 @@ def cmd_approve(p, args):
         sys.exit("approve [all | <digest>...]")
     pending = {}
     for m in p.milestones():
-        for c in (m.get("quality") or {}).get("contract") or []:
+        for c in install_step(m) + ((m.get("quality") or {}).get("contract") or []):
             if c.get("cmd") and not approved(p, c["cmd"]):
                 pending.setdefault(digest(c["cmd"]), c)
     if not args:
@@ -316,7 +337,7 @@ def cmd_approve(p, args):
     print(f"APPROVED {len(picked)}")
 
 
-MERGE_RESULTS = {1: "CONTRACT-CHANGED", 2: "CONFLICT", 3: "RED"}
+MERGE_RESULTS = {1: "CONTRACT-CHANGED", 2: "CONFLICT", 3: "RED", 4: "INSTALL-FAILED"}
 LAND_RESULTS = {1: "NOT-MERGED"}
 
 
@@ -335,19 +356,20 @@ def outcome(step, results):
 
 
 def cmd_merge(p, args):
-    """Merge story/<id> into its milestone's branch (--no-ff), then run the milestone's contract there.
+    """Merge story/<id> into its milestone's branch (--no-ff), then install and run the milestone's contract there.
 
     merge <story>... | <milestone>/<story>... [--land [--next]] [--force]
     It merges in the worktree that has the milestone's branch checked out, else in the repo checkout, and runs
-    quality.contract[].cmd there to <run dir>/contract.log. The merge that completes a wave (no story of the
-    milestone left working or in approval) carries `wave: true` on its `merged` event. Prints one of:
+    quality.install.cmd, then quality.contract[].cmd there to <run dir>/contract.log. The merge that completes a wave
+    (no story of the milestone left working or in approval) carries `wave: true` on its `merged` event. Prints one of:
       MERGED <id> <n> commits; ready: <ids>   story done, commits recorded
       CONFLICT <id> <n>                        merge aborted; n = conflicts so far
       RED <id> <cmd> + the log's last 40 lines merge undone (reset --hard ORIG_HEAD)
+      INSTALL-FAILED <id> <cmd> + the log's last 40 lines   quality.install failed; merge undone
       CONTRACT-CHANGED <digest> <repo>: <cmd>  not approved on this machine (`approve`); nothing merged
     Several ids, or --land, are a queue merged in order, each printing its line; --land runs `land` (--next passed on)
     on each MERGED before the next id. The first result other than MERGED stops the queue, which exits as that step did:
-      STOPPED <id> <CONFLICT|RED|CONTRACT-CHANGED|NOT-MERGED|ERROR: <why>>
+      STOPPED <id> <CONFLICT|RED|INSTALL-FAILED|CONTRACT-CHANGED|NOT-MERGED|ERROR: <why>>
       PENDING <ids> | PENDING -                   the ids it never reached
     A milestone another person owns is refused unless --force.
     """
@@ -375,7 +397,7 @@ def cmd_merge(p, args):
 
 
 def merge_story(p, target, force):
-    """`merge` of one story, exiting with its result's code: 1 CONTRACT-CHANGED, 2 CONFLICT, 3 RED."""
+    """`merge` of one story, exiting with its result's code: 1 CONTRACT-CHANGED, 2 CONFLICT, 3 RED, 4 INSTALL-FAILED."""
     mid, _, sid = target.rpartition("/")
     require_owner(p, p.story(sid, mid or None)[0]["id"], force)
     m, s = p.story(sid, mid or None)  # claiming pulls, which replaces p.data
@@ -383,7 +405,7 @@ def merge_story(p, target, force):
     if not branch:
         sys.exit(f"{m['id']} has no branch")
     branch_name(branch)
-    require_approved(p, m.get("quality", {}).get("contract", []))
+    require_approved(p, install_step(m) + m.get("quality", {}).get("contract", []))
     tree = checked_out(p.repo, branch)
     cwd = tree if tree and os.path.isdir(tree) else p.repo
     if git(p, "rev-parse", "--abbrev-ref", "HEAD", cwd=cwd).stdout.strip() != branch:
@@ -399,20 +421,21 @@ def merge_story(p, target, force):
     log = os.path.join(p.root, "contract.log")
     results = []
     open(log, "w").close()
+
+    def undo(result, cmd, code):
+        git(p, "reset", "--hard", "ORIG_HEAD", cwd=cwd)
+        p.save()
+        print(f"{result} {s['id']} {cmd}\n" + log_tail(log))
+        sys.exit(code)
+    for c in install_step(m):
+        if not run_logged(c["cmd"], cwd, log):
+            undo("INSTALL-FAILED", c["cmd"], 4)
     for c in m.get("quality", {}).get("contract", []):
-        with open(log, "a") as f:
-            f.write(f"$ {c['cmd']}\n")
-            f.flush()
-            ok = subprocess.run(c["cmd"], shell=True, cwd=cwd, stdout=f, stderr=subprocess.STDOUT).returncode == 0
+        ok = run_logged(c["cmd"], cwd, log)
         results.append({"cmd": c["cmd"], "ok": ok, "at": NOW(), "story": s["id"]})
         if not ok:
-            git(p, "reset", "--hard", "ORIG_HEAD", cwd=cwd)
             m["quality"]["contract"] = results + m["quality"]["contract"][len(results):]
-            p.save()
-            with open(log) as f:
-                tail = f.read().splitlines()[-40:]
-            print(f"RED {s['id']} {c['cmd']}\n" + "\n".join(tail))
-            sys.exit(3)
+            undo("RED", c["cmd"], 3)
     m.setdefault("quality", {})["contract"] = results
     s.update(status="done", commits=[{k: v for k, v in c.items() if k != "at"} for c in commits], finishedAt=NOW())
     for c in commits:
@@ -1095,6 +1118,34 @@ def write_prompt(path, text, model):
 
 def launch(p, m, s, retry=None):
     """Dispatch one story as phase-3-build.md's Dispatch says, and record it: its one line."""
+    return launch_wave(p, [(m, s)], retry)[0]
+
+
+def launch_wave(p, stories, retry=None):
+    """Dispatch each (milestone, story) as `launch` does, running quality.install in all their new worktrees at once:
+    a line per story, in order."""
+    placed = [place(p, m, s, retry) for m, s in {(m["id"], s["id"]): (m, s) for m, s in stories}.values()]
+    jobs = [(x, c, name, tree) for x in placed if not isinstance(x, str)
+            for c in install_step(x["milestone"]) for name, _, tree, _ in x["trees"]]
+    with ThreadPoolExecutor(max_workers=INSTALLS) as pool:
+        failed = [why for why in pool.map(lambda job: install(p, *job), jobs) if why]
+    lines = []
+    for x in placed:
+        if isinstance(x, str):
+            lines.append(x)
+            continue
+        why = next((f"{name}: {last}" for sid, name, last in failed if sid == x["story"]["id"]), None)
+        if why:
+            x["undo"]()
+            lines.append(f"INSTALL-FAILED {safe_id(x['story']['id'])} {why}")
+        else:
+            lines.append(dispatch(p, *p.story(x["story"]["id"], x["milestone"]["id"]), x, retry))
+    return lines
+
+
+def place(p, m, s, retry):
+    """The story's worktrees, made: {milestone, story, trees, undo}, or its SKIP or FAILED line with nothing left
+    made."""
     sid, model = safe_id(s["id"]), s.get("model") or "sonnet"
     safe_id(m["id"])
     if not (isinstance(model, str) and MODEL.fullmatch(model)):
@@ -1111,6 +1162,9 @@ def launch(p, m, s, retry=None):
         why = (f"is {s.get('status')}" if s.get("status") != "todo" else "handed off" if sid in p.handed_off(m)
                else f"waits on {' '.join(waits)}")
         return f"SKIP {sid} {why}"
+    for c in install_step(m):
+        if not approved(p, c["cmd"]):
+            return f"FAILED {sid} install not approved: {contract_line(p, c)} (podium approve)"
     trees, made = story_trees(p, m, s), []
 
     def undo():
@@ -1129,6 +1183,25 @@ def launch(p, m, s, retry=None):
             undo()
             return f"FAILED {sid} worktree {name}: {why}"
         made.append((src, tree))
+    return {"milestone": m, "story": s, "trees": trees, "undo": undo}
+
+
+def install(p, placed, c, name, tree):
+    """Run install command `c` in one of a placed story's worktrees, logged to
+    <podium dir>/stories/<milestone>/<id>.<repo>.install.log: None, or (story id, repo, the log's last line) when it
+    failed."""
+    sid = safe_id(placed["story"]["id"])
+    log = os.path.join(p.dir, "stories", placed["milestone"]["id"], f"{sid}.{name}.install.log")
+    os.makedirs(os.path.dirname(log), exist_ok=True)
+    open(log, "w").close()
+    if run_logged(c["cmd"], tree, log):
+        return None
+    return placed["story"]["id"], name, (log_tail(log).splitlines() or ["exit non-zero"])[-1]
+
+
+def dispatch(p, m, s, placed, retry):
+    """Start the agent of a placed story and record it: its LAUNCHED, PROMPT or FAILED line."""
+    sid, model, trees = safe_id(s["id"]), s.get("model") or "sonnet", placed["trees"]
     text = story_prompt(p, m, s, retry)
     if dispatcher(p) == "paseo":
         model, home = paseo_provider(model), trees[0][2]
@@ -1144,7 +1217,7 @@ def launch(p, m, s, retry=None):
         if not run:
             if ws:
                 paseo("workspace", "archive", ws["workspaceId"])
-            undo()
+            placed["undo"]()
             return f"FAILED {sid} paseo: {why}"
         agent = {"backend": "paseo", "id": run["agentId"], "workspace": ws["workspaceId"]}
         line = f"LAUNCHED {sid} paseo agent={run['agentId'][:8]} model={model}"
@@ -1187,12 +1260,14 @@ def cmd_launch(p, args):
     """Dispatch ready stories (phase-3-build.md, Dispatch) and record each.
 
     launch [<milestone>/]<story>... [--retry <reason, or @file>] [--force]
-    A worktree on story/<id> beside the repo, then with this machine's dispatcher paseo a Paseo workspace and agent
-    running the story prompt; records status, attempts, agent, branch, worktrees, startedAt and a `dispatched` event.
+    A worktree on story/<id> beside the repo, quality.install run in every new worktree at once, then with this
+    machine's dispatcher paseo a Paseo workspace and agent running the story prompt; records status, attempts, agent,
+    branch, worktrees, startedAt and a `dispatched` event.
     --retry retires the last attempt first, starts the branch afresh and adds the reason to the prompt.
       LAUNCHED <id> paseo agent=<id> model=<provider>
       PROMPT <file> model=<model>          dispatcher agent: hand the file to the Agent tool
       SKIP <id> <why> | FAILED <id> <why>   nothing recorded, worktree undone
+      INSTALL-FAILED <id> <repo>: <why>     the install failed: nothing recorded, worktree undone
       DISPATCHER agent (podium dispatcher paseo to use Paseo)   once, a synced run this machine chose none for
     Launches nothing when a story's milestone is another person's, unless --force.
     """
@@ -1209,9 +1284,8 @@ def cmd_launch(p, args):
     for mid in dict.fromkeys(p.story(sid, mid or None)[0]["id"] for mid, sid in targets):
         if awaited(p, p.milestone(mid)):
             print(f"NOTE {mid} is waiting for {' '.join(awaited(p, p.milestone(mid)))}; launching anyway")
-    for mid, sid in targets:
-        m, s = p.story(sid, mid or None)
-        print(launch(p, m, s, retry))
+    for line in launch_wave(p, [p.story(sid, mid or None) for mid, sid in targets], retry):
+        print(line)
 
 
 # --- hand-offs: the prompts that pass a milestone's planning, quality gate and retro to a fresh subagent ----
@@ -1391,7 +1465,8 @@ def cmd_land(p, args):
         elif busy:
             head += f"; wave waits on {' '.join(busy)}"
         else:
-            out = [(r, launch(p, *p.story(r, m["id"]))) for r in p.ready(m)]  # each launch saves: look the story up afresh
+            ready = p.ready(m)
+            out = list(zip(ready, launch_wave(p, [p.story(r, m["id"]) for r in ready])))
             done = [r for r, line in out if line.split()[0] in ("LAUNCHED", "PROMPT")]
             head += f"; launched {' '.join(done)}" if done else "; nothing ready"
             extra += [line for _, line in out if not line.startswith("LAUNCHED")]
