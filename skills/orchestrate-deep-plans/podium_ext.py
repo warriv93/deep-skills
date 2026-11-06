@@ -1054,6 +1054,23 @@ def retire(p, m, s):
     return kept
 
 
+def archive_branches(p, m, s):
+    """Rename the landed story's `story/<id>` to `archive/<milestone>/story/<id>` in each checkout whose worktree is gone
+    and whose milestone branch contains it, so a later milestone's story of the same id can branch; a line for each kept."""
+    kept, branch = [], f"story/{safe_id(s['id'])}"
+    archive = f"archive/{safe_id(m['id']).lower()}/{branch}"
+    for (src, tree), (_, _, _, start) in zip(recorded_trees(p, m, s), story_trees(p, m, s)):
+        if not src or os.path.exists(tree) or not sha_of(src, f"refs/heads/{branch}"):
+            continue
+        if not (start and git_in(src, "merge-base", "--is-ancestor", f"refs/heads/{branch}", start)[0]):
+            kept.append(f"KEPT {branch} in {src}: not merged into {start}")
+            continue
+        ok, _, why = git_in(src, "branch", "-m", "--end-of-options", branch, archive)
+        if not ok:
+            kept.append(f"KEPT {branch} in {src}: {why}")
+    return kept
+
+
 def unblock(m):
     """Stories blocked by a failure no longer upstream of them go back to todo."""
     by_id = {s["id"]: s for s in m.get("stories", [])}
@@ -1341,7 +1358,8 @@ def cmd_land(p, args):
     """After `merge` printed MERGED: retire the story, release a hand-off, and with --next launch the next wave.
 
     land <story> | <milestone>/<story> [--next] [--force]
-    Archives the story's Paseo workspace and removes its worktree; --next with the story's milestone's buildAll
+    Archives the story's Paseo workspace, removes its worktree and renames its merged story/<id> to
+    archive/<milestone>/story/<id>; --next with the story's milestone's buildAll
     on and its wave complete launches that milestone's ready stories. Prints `LANDED <id>[; launched <ids> |
     ; wave waits on <ids> | ; wave held | ; buildAll off]`, then a line per PROMPT, KEPT worktree or failure. A milestone another
     person owns is refused unless --force.
@@ -1355,7 +1373,7 @@ def cmd_land(p, args):
     if s.get("status") != "done":
         print(f"NOT-MERGED {sid} {s.get('status')}")
         sys.exit(1)
-    extra = retire(p, m, s)
+    extra = retire(p, m, s) + archive_branches(p, m, s)
     if sid in p.handed_off(m):
         url, _ = podium_url(p)
         gone = url and http(f"{url}handoff/{safe_id(m['id'])}/{safe_id(sid)}", method="DELETE")

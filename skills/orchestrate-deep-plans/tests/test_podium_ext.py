@@ -1065,6 +1065,23 @@ class Launch(Run):
             self.assertIn("workspace archive wks_1 --json\n", f.readlines())
         self.assertEqual(self.milestone()["stories"][1]["status"], "working")
 
+    def test_land_archives_the_merged_story_branch_so_the_id_can_branch_again(self):
+        self.podium("launch", "S1")
+        tip = git(self.main, "rev-parse", "story/S1")
+        self.podium("set", "S1", "status=done")
+        self.assertEqual(self.podium("land", "S1").strip(), "LANDED S1")
+        self.assertEqual(git(self.main, "branch", "--list", "story/S1"), "")
+        self.assertEqual(git(self.main, "rev-parse", "archive/m1/story/S1"), tip)
+        self.podium("set", "S1", "status=todo")
+        self.assertTrue(self.podium("launch", "S1").startswith("PROMPT "))
+
+    def test_land_keeps_a_story_branch_its_milestone_branch_lacks(self):
+        self.podium("launch", "S1")
+        commit(f"{self.main}-S1", "s.txt", "feat: one\n\nStory: S1")
+        self.podium("set", "S1", "status=done")
+        self.assertEqual(self.podium("land", "S1").splitlines()[1:], [f"KEPT story/S1 in {self.main}: not merged into feat"])
+        self.assertNotEqual(git(self.main, "branch", "--list", "story/S1"), "")
+
     def dispatchers(self):
         with open(os.path.join(self.tmp, "dispatcher.json")) as f:
             return json.load(f)
