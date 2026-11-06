@@ -27,7 +27,7 @@ A `haiku` bulk read can spend more on thinking than on its reply: ask it for a d
 ## Brief
 
 - Static rules first, then the task, then the variable part (paths, a diff index) last, so briefs share a prompt-cache prefix.
-- Name files by path; the subagent reads them itself.
+- Name files by path; the subagent reads them itself, as targeted reads, which the brief states: Grep first, then Read with `offset`/`limit`, and a persisted tool-results file or any file over 300 lines grepped, never read whole.
 - A subagent that reviews a diff gets the **review pack**: `~/.claude/skills/deep-plan/scripts/review-pack.sh . <base> WORKTREE <scratch>/pack` writes one filtered diff per changed file and prints an index (`+a -d <path> → <diff file>`, what it skipped, totals). Put that index last; it reads the diffs of its axis in place of running `git diff`.
 
 ## Reply cap
