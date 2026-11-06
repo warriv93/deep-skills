@@ -64,6 +64,9 @@ if [ -f "$pinned" ]; then
     [[ "$line" == *:* ]] && [ -n "$n" ] && [ -n "$c" ] && add "$n" "$c"
   done < "$pinned"
 else
+  for archived in "$dir"/.deep-plan/archive/*/contract.cmds; do
+    [ -f "$archived" ] && { echo "WARN no $pinned, so gates are detected and skip the pinned ones in ${archived#"$dir"/}; move it back to .deep-plan/contract.cmds"; break; }
+  done
   if [ -f "$dir/package.json" ]; then
     use_node
     pm=npm; [ -f "$dir/pnpm-lock.yaml" ] && pm=pnpm; [ -f "$dir/yarn.lock" ] && pm=yarn

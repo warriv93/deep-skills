@@ -40,6 +40,11 @@ has   "gates: pinned file replaces detection" '^PASS unit 5 tests' "$out"
 hasnt "gates: pinned file replaces detection (no lint)" '^(PASS|FAIL) lint' "$out"
 has   "gates: a failing pinned gate shows its output" '^  oops$' "$out"
 
+mkdir -p "$n/.deep-plan/archive/M1"; cp "$T/p.cmds" "$n/.deep-plan/archive/M1/contract.cmds"
+out="$("$G" "$n" --only typecheck --logs "$T/l4" 2>&1)"
+has   "gates: detection warns when the contract was archived" '^WARN .*\.deep-plan/archive/M1/contract\.cmds' "$out"
+rm -rf "$n/.deep-plan"
+
 e="$T/empty"; mkdir -p "$e"; git -C "$e" init -q
 out="$("$G" "$e" 2>&1)"; rc=$?
 [ $rc = 3 ] && has "gates: a repo with no gates exits 3" '^NONE' "$out" || fail "gates: a repo with no gates exits 3 (got $rc)"
