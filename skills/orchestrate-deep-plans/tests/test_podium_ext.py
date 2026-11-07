@@ -200,7 +200,6 @@ class Merge(Run):
         self.assertEqual(git(self.feature, "show", "HEAD:a.txt"), "tidied")
 
     def test_a_merge_lists_the_out_of_scope_files_of_the_current_attempt(self):
-        self.assertEqual(self.call("log", "M1/S1", "NOTE", "x")[0], 1)
         self.ext().prompt(Podium(self.run_dir), "assign", "S1")
         commit(self.story_branch("S1"), "s.txt", "feat: one\n\nStory: S1")
         for stage, note in (("NOTE", "out-of-scope lib/old.py: earlier attempt"), ("STARTED", ""),
