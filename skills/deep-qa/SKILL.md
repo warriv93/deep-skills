@@ -25,7 +25,7 @@ Apply LENSES.md's triggers to the diff (`git diff --stat <base>`) and the mode. 
 
 ## 3. Run them
 
-Build the review pack once: `~/.claude/skills/deep-plan/scripts/review-pack.sh . <base> WORKTREE <scratch>/pack`. Start the static lenses first, in parallel: Defects, Spec, Design and Security are independent subagents under the subagent protocol (`~/.claude/skills/deep-plan/subagent-protocol.md`), each given the pack's index. Then run Contract, and Journeys, Accessibility and Performance against the running app.
+Build the review pack once: `~/.claude/skills/deep-plan/scripts/review-pack.sh . <base> WORKTREE <scratch>/pack`. Start the static lenses first, in parallel: Defects, Spec, Design and Security are independent subagents under the subagent protocol (`~/.claude/skills/deep-plan/subagent-protocol.md`), each given LENSES.md's Rows section and the pack's index. Then run Contract, and Journeys, Accessibility and Performance against the running app.
 
 Each lens ends on LENSES.md's done-when for it, or as `not run: <reason>` in the findings file. A lens that can't run is never silently dropped.
 
