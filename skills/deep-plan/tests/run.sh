@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: tests/run.sh
-# Runs scripts/gates.sh and scripts/review-pack.sh against throwaway fixture repos and asserts on its output lines.
+# Runs scripts/gates.sh, scripts/review-pack.sh and scripts/new-clones.sh against throwaway fixture repos and asserts on its output lines.
 # Prints PASS/FAIL per assertion and exits non-zero on any FAIL.
 set -uo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
@@ -105,6 +105,25 @@ out="$("$here/scripts/review-pack.sh" "$p" base base "$T/pack3" 2>&1)"
 has  "pack: empty change says 0 files" '^TOTAL 0 files' "$out"
 out="$("$here/scripts/review-pack.sh" "$p" nope HEAD "$T/pack4" 2>&1 || true)"
 has  "pack: unknown base fails" 'unknown base ref' "$out"
+
+# ---------- new-clones.sh, with jscpd stubbed by $JSCPD
+C="$here/scripts/new-clones.sh"
+c="$T/repos/clones"; mkrepo "$c"
+stub() { printf '#!/usr/bin/env bash\necho "$*" > %q\ncat %q\nexit %s\n' "$T/stub.args" "$T/stub.out" "$1" > "$T/jscpd"; chmod +x "$T/jscpd"; }
+printf '\033[1mClone found (typescript)\033[22m\n - a.ts [1:1 - 7:2] (7 lines)\n   b.ts [1:1 - 7:2]\nClone found (typescript) [NEW]\n - a.ts [1:1 - 7:2] (7 lines)\n   c.ts [1:1 - 7:2]\n+----+\nFound 2 clones (1 new).\nERROR: jscpd found 1 new clones\n' > "$T/stub.out"
+stub 1; out="$(JSCPD="$T/jscpd" "$C" "$c" main 2>&1)"; rc=$?
+[ $rc = 1 ] && pass "clones: exit 1 on a new clone" || fail "clones: exit 1 on a new clone (got $rc)"
+has   "clones: a new clone is shown with its locations" '^   c\.ts ' "$out"
+hasnt "clones: a clone the base has is left out" 'b\.ts' "$out"
+has   "clones: the failure names the fix" '^FIX .*against main' "$out"
+has   "clones: jscpd compares against the base ref" '--baseline-from-ref main --fail-on-new-clones 0' "$(cat "$T/stub.args")"
+stub 0; out="$(JSCPD="$T/jscpd" "$C" "$c" main 2>&1)"; rc=$?
+[ $rc = 0 ] && has "clones: no new clone passes" '^PASS no new clones against main' "$out" || fail "clones: no new clone passes (got $rc)"
+printf 'error: bad config\n' > "$T/stub.out"
+stub 2; out="$(JSCPD="$T/jscpd" "$C" "$c" main 2>&1)"; rc=$?
+[ $rc = 2 ] && has "clones: another jscpd failure keeps its output" '^error: bad config' "$out" || fail "clones: another jscpd failure keeps its exit code (got $rc)"
+out="$(JSCPD="$T/jscpd" "$C" "$c" nope 2>&1)"; rc=$?
+[ $rc = 2 ] && has "clones: an unknown base ref exits 2" 'unknown base ref nope' "$out" || fail "clones: an unknown base ref exits 2 (got $rc)"
 
 echo
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }
