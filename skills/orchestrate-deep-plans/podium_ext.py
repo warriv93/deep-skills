@@ -628,7 +628,8 @@ def cmd_brief(p, args):
     brief [<milestone>/]<story> [--milestone M]
     The planning files are the milestone's .md `artifacts`, its `spec`, architecture*.md, spec/spec.md and
     spec/tasks.md. A reference is `file.md#heading` or `[..](file.md#anchor)`, `[file.md ]§ Heading`, a
-    heading's text in backticks or quotes, and the story's own `## <id>` section of tasks.md. Each section
+    heading's text in backticks or quotes, the story's own `## <id>` section of tasks.md, and spec-brief.md's
+    `Objective` or `Objectives` section. Each section
     prints under `=== <file> § <heading>`; a reference that matches nothing prints `MISSING <ref>`.
     """
     named = args[args.index("--milestone") + 1] if "--milestone" in args else None
@@ -686,7 +687,18 @@ def brief_sections(p, m, sid, brief, brief_dir):
         pick(f, lambda lvl, h: lvl > 1 and norm(h) in quoted)
         if os.path.basename(f) == "tasks.md":
             pick(f, lambda lvl, h: own.match(h.strip("`*_ ")))
+    if spec_brief := find_spec_brief(p, m):
+        pick(spec_brief, lambda lvl, h: re.fullmatch(r"objectives?", norm(h)))
     return picked, missing
+
+
+def find_spec_brief(p, m):
+    """deep-plan's .deep-plan/spec-brief.md, in the run dir or the milestone's worktree, or None."""
+    tree = planning_tree(p, m)
+    for path in (os.path.join(p.root, "spec-brief.md"), tree and os.path.join(tree, ".deep-plan", "spec-brief.md")):
+        if path and os.path.isfile(path):
+            return os.path.realpath(path)
+    return None
 
 
 # --- breakdown: a milestone's tasks.md into its stories and their briefs ----------

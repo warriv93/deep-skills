@@ -449,6 +449,35 @@ class Brief(Run):
         for unwanted in ("nope", "Not a heading", "T010", "§ Detail"):
             self.assertNotIn(unwanted, out)
 
+    def brief_with(self, context, spec_brief=None):
+        if spec_brief is not None:
+            with open(os.path.join(self.run_dir, "spec-brief.md"), "w") as f:
+                f.write(spec_brief)
+        os.makedirs(os.path.join(self.run_dir, "podium", "stories", "M1"), exist_ok=True)
+        with open(os.path.join(self.run_dir, "podium", "stories", "M1", "S1.md"), "w") as f:
+            f.write(f"# S1 · One\n## Context\n{context}")
+        return self.podium("brief", "S1")
+
+    def test_always_prints_the_spec_brief_objective(self):
+        out = self.brief_with("- nothing named\n", "# Brief\n\n## Objective\nwhy we build it\n\n## Users\nnope\n")
+        self.assertIn("=== spec-brief.md § Objective\n## Objective\nwhy we build it", out)
+        self.assertNotIn("nope", out)
+
+    def test_matches_objectives_at_any_level(self):
+        out = self.brief_with("- nothing named\n", "# Brief\n\n### Objectives\n- one\n- two\n")
+        self.assertIn("=== spec-brief.md § Objectives", out)
+        self.assertIn("- two", out)
+
+    def test_without_a_spec_brief_prints_no_objective(self):
+        out = self.brief_with("- nothing named\n")
+        self.assertNotIn("spec-brief", out)
+        self.assertNotIn("MISSING", out)
+
+    def test_an_objective_the_context_names_prints_once(self):
+        out = self.brief_with("- `spec-brief.md#Objective`\n", "# Brief\n\n## Objective\nwhy we build it\n")
+        self.assertEqual(out.count("=== spec-brief.md § Objective"), 1)
+        self.assertNotIn("MISSING", out)
+
 
 TASKS = """\
 # Tasks: Invites
