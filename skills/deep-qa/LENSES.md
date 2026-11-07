@@ -4,7 +4,9 @@ Each lens: what it looks for, when it runs, how, and its done-when. "Changed" me
 
 ## Rows
 
-Every lens reports rows as `| file:line or journey step | lens | failure | fix |`, the failure a concrete input or state and what goes wrong. Calibration:
+Every lens reports rows as `| file:line or journey step | lens | failure | fix |`, the failure a concrete input or state and what goes wrong. Report every candidate with such a scenario, verified or not, including any a lens's skill would drop as low-confidence: SKILL.md step 4 traces each row and drops what doesn't hold, but can't recover a row left out. A lens's **Bar** sets a kept row's tag, never whether a row is reported.
+
+Calibration for what step 4 keeps:
 
 - Kept: `| src/billing/period.ts:42 | Defects | endOfDay("2026-03-29", "Europe/Stockholm") adds 24 h to local midnight, so on the DST day it returns 01:00 on the 30th and that hour's charges land in the next period | end the period at the next local midnight minus 1 ms, computed in the zone |`
 - Rejected: `| src/orders/summary.ts:88 | Defects | order.customer may be null → crash | guard it |`. Line 61 returns early when `customer` is null, and the row names no state that reaches line 88 with it null.
