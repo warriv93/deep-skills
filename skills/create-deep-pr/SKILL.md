@@ -1,6 +1,6 @@
 ---
 name: create-deep-pr
-description: Take finished work to a draft pull request: branch, commit, run the checks CI would fail on, screenshot UI changes, push, and write the PR like the repo's recent ones. Use for /create-deep-pr, a PR that /deep-plan or /orchestrate-deep-plans asks for, or "open a PR" where no repo-specific PR skill is installed.
+description: Take finished work to a draft pull request: branch, commit, run the checks CI would fail on, agent-review it, screenshot UI changes, push, and write the PR like the repo's recent ones. Use for /create-deep-pr, a PR that /deep-plan or /orchestrate-deep-plans asks for, or "open a PR" where no repo-specific PR skill is installed.
 argument-hint: [issue link] [--ready] [--skip-tests] [notes for the description]
 ---
 
@@ -50,6 +50,18 @@ Run the recipe against the committed HEAD with a clean tree. Run long checks in 
 - If a failure isn't caused by the branch (the base branch is broken, say), stop and tell the user. Push past it only with their say-so, and note it under "Not in this PR".
 - Pass `--skip-tests` only when the user asks for it, and say so in the PR's Tests section.
 - Once green, confirm the branch still merges cleanly with `git merge-tree --write-tree origin/HEAD HEAD`. On conflicts, tell the user. Rebasing is their call.
+
+## 4b. Agent review
+
+A reviewer with fresh context reads the whole diff before it leaves the machine. A review of this same HEAD earlier in the session counts. Spawn one `opus` subagent with this brief, in order:
+
+1. `You review a branch before its PR. The diff and the repo are your only context. Defects: trace each changed branch, boundary and error path to a concrete failing input. Design: logic the repo already has (grep the repo for each new function's key identifiers and distinctive shapes, a literal, a condition, a call sequence, and read only the hits), a second or later special case of one rule where a general one fits, a new pass-through module whose interface is as wide as its body. Read targeted: Grep first, then Read with offset/limit. Tag each finding: blocker (breaks behaviour, a contract or a promise), should-fix (a reachable bug away from the seams; a duplicate of more than ~5 lines or of logic; a bolted-on special case; a pass-through module), nit (worth fixing, never blocks). Reply in at most 12 lines, NO_PREAMBLE, one per finding: <tag> <file:line> <failure> -> <fix>; or NONE.`
+2. What changed and why, from step 1.
+3. The repo root, the base sha (`git merge-base origin/HEAD HEAD`) and `git diff --stat origin/HEAD...HEAD`.
+
+Open each finding at its file:line and keep those whose failure you can trace. Fix every kept blocker and should-fix as step 3 commits, then re-run step 4. A should-fix you decline goes under Review notes with its reason; nits go in the report.
+
+Done when no kept blocker is open, every kept should-fix is fixed or declined in Review notes, and step 4 is green on the new HEAD.
 
 ## 5. Screenshots
 
@@ -105,6 +117,7 @@ End with the PR link on its own line so it's clickable. Follow it with 2-3 lines
 
 - the branch, and whether the PR is a draft or ready
 - the checks that ran
+- the agent review: findings fixed and declined, and the open nits
 - whether screenshots were posted, or why not
 - Copilot's comments: how many were fixed and declined, each decline's reason, or why Copilot didn't review
 - files left out of the commit

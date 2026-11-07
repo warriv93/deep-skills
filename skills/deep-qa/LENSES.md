@@ -16,10 +16,10 @@ Each lens: what it looks for, when it runs, how, and its done-when. "Changed" me
 
 ### Design
 The strategic-programming lens: does the change leave the code simpler to change next time, or did it buy speed now with complexity later?
-- **Runs:** the diff adds a module, a public interface, an event or an endpoint, or touches more than a handful of files.
-- **How:** a strong subagent reads `~/.claude/skills/codebase-design/SKILL.md` and the changed files, and looks for complexity the change adds: shallow modules whose interface is as wide as their body, information leaking across a seam (two modules knowing one format or rule), pass-through layers, special cases bolted on where a general one fits, a change that needed edits in many places to do one thing, and names that hide what a thing is.
-- **Bar:** `Should fix` at most, each row naming the deeper shape it should take. A design problem that breaks a seam in `architecture.md` is a Defects row.
-- **Done when:** every new or widened interface in the diff has been judged deep enough or has a row.
+- **Runs:** always.
+- **How:** a strong subagent reads `~/.claude/skills/codebase-design/SKILL.md` and the review pack's diffs (a changed file whole only where a hunk needs its context), and looks for complexity the change adds: shallow modules whose interface is as wide as their body, information leaking across a seam (two modules knowing one format or rule), pass-through layers, special cases bolted on where a general one fits, a change that needed edits in many places to do one thing, names that hide what a thing is, and logic the repo already has. For the last, it greps the repo for each new function's key identifiers and distinctive shapes (a literal, a condition, a call sequence) and reads only the hits.
+- **Bar:** `Should fix` for a duplicate of repo code (more than ~5 lines, or logic rather than boilerplate), a second or later special case of one rule where a general one fits, and a new pass-through module; any other row `Should fix` at most. Each row names the deeper shape it should take, or the existing code to reuse. A design problem that breaks a seam in `architecture.md` is a Defects row.
+- **Done when:** every new or widened interface in the diff has been judged deep enough or has a row, and every new function has been grepped for a twin.
 
 ### Security
 - **Runs:** always.

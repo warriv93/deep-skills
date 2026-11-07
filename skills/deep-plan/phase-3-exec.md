@@ -16,6 +16,6 @@ Every slice committed green is not yet done — the gate follows.
 
 1. **Review:** follow `~/.claude/skills/deep-qa/SKILL.md` in `review` mode against the branch point (`origin/HEAD`), with label `phase-3`. It writes `.deep-plan/findings-phase-3.md`.
 2. **Fix what it finds**, refactoring under green tests (`/tdd` IMPROVE); commit as `refactor:` / `fix:`. Verdict `blocked` → put the blocking rows to the user first.
-3. Add to `findings-phase-3.md` the reason for each finding skipped. The ledger gets one line: `Quality gate: PASS with N findings in findings-phase-3.md`.
+3. Add to `findings-phase-3.md` the reason for each finding skipped. Each skipped `Should fix` also goes to the user in chat, one line each: `SKIPPED <file:line> <lens>: <reason>`. The ledger gets one line: `Quality gate: PASS with N findings, K Should fix skipped, in findings-phase-3.md`.
 4. Re-run the contract (one `gates.sh` call) until green. Record the HEAD sha in the ledger as `phase-3-end-sha`.
 5. Checkpoint.
