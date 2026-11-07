@@ -721,6 +721,82 @@ class Handoff(Run):
                      "[--saving <tokens/week, tokens kind only>] --milestone M1", "Reply with the FINDING lines it printed only"):
             self.assertIn(want, text)
 
+    def gate(self, text):
+        """M1's quality gate wrote `text` as its findings file; the podium tool logs each call's args to a file."""
+        os.makedirs(os.path.join(self.feature, ".deep-plan"), exist_ok=True)
+        with open(os.path.join(self.feature, ".deep-plan", "findings-phase-3.md"), "w") as f:
+            f.write(textwrap.dedent(text))
+        self.data["epics"][0]["milestones"][0]["quality"]["gate"] = {"file": ".deep-plan/findings-phase-3.md"}
+        self.write()
+        calls = os.path.join(self.tmp, "podium-calls")
+        tool = unittest.mock.patch.object(self.ext(), "PODIUM", [self.fake("podium-tool", f"""\
+            printf '%s\\n' "$@" > {calls}.$$
+            echo "FINDING $6 recorded (not pushed: no FINDINGS_REMOTE)"
+            """)])
+        tool.start()
+        self.addCleanup(tool.stop)
+
+        def read(name):
+            with open(os.path.join(self.tmp, name)) as f:
+                return f.read().splitlines()
+        return lambda: [read(c) for c in sorted(os.listdir(self.tmp)) if c.startswith("podium-calls.")]
+
+    def test_retro_records_the_gates_design_rows_per_repo_even_without_friction(self):
+        calls = self.gate("""\
+            # QA phase-3: fixable, 1 blockers, 1 should fix, 1 nits
+
+            ## Lenses
+            | lens | ran / skipped / not run | why |
+            | --- | --- | --- |
+            | Design | ran | touched |
+
+            ## Blockers
+            | file:line or journey step | lens | failure | fix |
+            | --- | --- | --- | --- |
+            | a.py:3 | Design | the same parsing copied into three handlers | one parser |
+
+            ## Should fix
+            | file:line or journey step | lens | failure | fix |
+            |---|---|---|---|
+            | b.py:9 | Defects | off by one | fix it |
+
+            ## Nits
+            | file:line or journey step | lens | failure | fix |
+            | --- | --- | --- | --- |
+            | c.py:1 | design | a special case for admins | fold it in |
+            """)
+        self.log({"at": ago(60), "type": "gate", "milestone": "M1", "verdict": "pass"})
+        out = self.podium("handoff", "M1", "retro")
+        self.assertEqual(out, "FINDING design-core recorded (not pushed: no FINDINGS_REMOTE)\nSKIP no friction\n")
+        [args] = calls()
+        flags = dict(zip(args[2::2], args[3::2]))
+        self.assertEqual(args[:2], ["--dir", self.run_dir])
+        self.assertEqual((args[2:4], flags["--key"], flags["--target"], flags["--severity"],
+                          flags["--fix"], flags["--milestone"]),
+                         (["finding", "add"], "design-core", "repo:core", "high", "standard", "M1"))
+        self.assertIn(flags["--kind"], ("design", "retro"))
+        self.assertIn("2 Design rows (Blocker, Nit), first: the same parsing copied into three handlers", flags["--moment"])
+
+    def test_retro_keys_design_rows_by_their_repo_column_and_records_each_once(self):
+        calls = self.gate("""\
+            ## Should fix
+            | repo | file:line or journey step | lens | failure | fix | confidence |
+            | --- | --- | --- | --- | --- | --- |
+            | web-applications | x.ts:1 | Design | a shallow wrapper | inline it | high |
+            | core | Y.java:2 | Design | a pass-through layer | delete it | high |
+            """)
+        self.log({"at": ago(60), "type": "finding", "milestone": "M1", "key": "design-core"})
+        self.podium("handoff", "M1", "retro")
+        self.assertEqual([dict(zip(a[2::2], a[3::2]))["--key"] for a in calls()], ["design-web-applications"])
+
+    def test_retro_records_nothing_without_design_rows_or_a_gate_file(self):
+        calls = self.gate("## Blockers\n| file:line | lens | failure | fix |\n| --- | --- | --- | --- |\n| a:1 | Spec | x | y |\n")
+        self.assertEqual(self.podium("handoff", "M1", "retro"), "SKIP no friction\n")
+        self.data["epics"][0]["milestones"][0]["quality"]["gate"] = {"file": "missing.md"}
+        self.write()
+        self.assertEqual(self.podium("handoff", "M1", "retro"), "SKIP no friction\n")
+        self.assertEqual(calls(), [])
+
 
 class Recur(Run):
     """turn, in process, with a stub `podium` whose `findings --recur` prints `findings`."""

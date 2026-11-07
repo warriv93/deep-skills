@@ -1359,6 +1359,71 @@ def friction(events):
             or e.get("type") == "gate" and e.get("verdict") not in (None, "pass")]
 
 
+QA_TAGS = {"Blockers": "Blocker", "Should fix": "Should fix", "Nits": "Nit"}
+
+
+def design_kind():
+    """`design` once the installed podium accepts that kind of finding, `retro` before."""
+    try:
+        from podium_dashboard import findings
+    except ImportError:
+        return "retro"
+    return "design" if "design" in getattr(findings, "KINDS", ()) else "retro"
+
+
+def gate_file(p, m):
+    """The milestone's quality gate findings file (quality.gate.file, relative to its worktree, repo or run dir), or None."""
+    path = ((m.get("quality") or {}).get("gate") or {}).get("file")
+    if not path:
+        return None
+    bases = [""] if os.path.isabs(path) else [b for b in (planning_tree(p, m), p.repo, p.root) if b]
+    return next((os.path.join(b, path) for b in bases if os.path.isfile(os.path.join(b, path))), None)
+
+
+def design_rows(path, repo):
+    """{repo: [(tag, failure)]} of a QA findings file's Design lens rows under its Blockers, Should fix and Nits
+    tables; a table without a repo column counts for `repo`."""
+    rows, tag, header = {}, None, None
+    with open(path, errors="replace") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("#"):
+                tag, header = QA_TAGS.get(line.lstrip("#").strip()), None
+                continue
+            if not line.startswith("|"):
+                header = None
+                continue
+            if not tag:
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if header is None:
+                header = [c.lower() for c in cells]
+            elif "lens" in header and not set(line) <= set("|-: ") and len(cells) == len(header):
+                cell = dict(zip(header, cells))
+                if cell["lens"].lower() == "design":
+                    rows.setdefault(cell.get("repo") or repo, []).append((tag, cell.get("failure", "")))
+    return rows
+
+
+def record_design(p, m):
+    """A `design-<repo>` finding per repo whose Design rows the milestone's quality gate reported, once per milestone,
+    so decay that recurs across milestones shows up in `podium findings`. Prints podium's FINDING lines."""
+    path = gate_file(p, m)
+    if not path:
+        return
+    seen = {e.get("key") for e in milestone_events(p, m["id"]) if e.get("type") == "finding"}
+    for repo, found in sorted(design_rows(path, os.path.basename(p.repo)).items()):
+        key = "design-" + (re.sub(r"[^a-z0-9]+", "-", repo.lower()).strip("-") or "repo")
+        if key in seen:
+            continue
+        tags = sorted({t for t, _ in found}, key=list(QA_TAGS.values()).index)
+        pass_through("design", "--dir", p.root, "finding", "add", "--key", key, "--kind", design_kind(),
+                     "--target", f"repo:{repo}", "--title", f"the quality gate found design problems in {repo}",
+                     "--moment", f"{path}: {len(found)} Design rows ({', '.join(tags)}), first: {found[0][1][:160]}",
+                     "--fix", "standard", "--severity", "high" if "Blocker" in tags else "normal",
+                     "--milestone", m["id"], timeout=120)
+
+
 def retro_text(p, m, named, book, snags):
     mid, cli = safe_id(m["id"]), podium_cli(p.root)
     start = next((e["at"] for e in milestone_events(p, m["id"]) if e.get("at")), "7d")
@@ -1436,10 +1501,13 @@ def cmd_handoff(p, args):
     landing (phase-4-handback.md), `retro` records findings on a landed milestone's friction (phase-5-retro.md).
       PROMPT <file> model=<model>          hand the file to the Agent tool
       SKIP no friction                     retro only: nothing in its events to look into; no file written
+    A retro first records the gate's Design rows as a `design-<repo>` finding (record_design), printing its FINDING line.
     """
     if len(args) != 2 or args[1] not in HANDOFF_MODELS:
         sys.exit(f"handoff <milestone> {'|'.join(HANDOFF_MODELS)}")
     m, kind = p.milestone(args[0]), args[1]
+    if kind == "retro":
+        record_design(p, m)
     if kind == "retro" and not friction(milestone_events(p, m["id"])):
         return print("SKIP no friction")
     path = os.path.join(p.dir, "handoffs", f"{safe_id(m['id'])}-{kind}.md")
