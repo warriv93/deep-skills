@@ -191,6 +191,23 @@ class Merge(Run):
         self.assertEqual(self.state()["assumptions"][-1]["question"], "q?")
         self.assertTrue(os.path.exists(os.path.join(self.feature, "s.txt")))  # merged where feat is checked out
 
+    def test_merges_every_commit_on_the_story_branch(self):
+        tree = self.story_branch("S1")
+        tidy = commit(tree, "a.txt", "refactor: extract\n\nStory: S1", text="tidied")
+        change = commit(tree, "s.txt", "feat: one\n\nStory: S1")
+        self.assertTrue(self.podium("merge", "S1").startswith("MERGED S1 2 commits"))
+        self.assertEqual([c["sha"] for c in self.milestone()["stories"][0]["commits"]], [tidy[:10], change[:10]])
+        self.assertEqual(git(self.feature, "show", "HEAD:a.txt"), "tidied")
+
+    def test_a_merge_lists_the_out_of_scope_files_of_the_current_attempt(self):
+        self.assertEqual(self.call("log", "M1/S1", "NOTE", "x")[0], 1)
+        self.ext().prompt(Podium(self.run_dir), "assign", "S1")
+        commit(self.story_branch("S1"), "s.txt", "feat: one\n\nStory: S1")
+        for stage, note in (("NOTE", "out-of-scope lib/old.py: earlier attempt"), ("STARTED", ""),
+                            ("NOTE", "out-of-scope lib/money.py: generalised rounding"), ("NOTE", "an aside")):
+            self.podium("log", "M1/S1", stage, note)
+        self.assertEqual(self.podium("merge", "S1").splitlines()[1:], ["OUT-OF-SCOPE S1 lib/money.py: generalised rounding"])
+
     def test_the_merge_that_completes_a_wave_marks_its_event(self):
         self.data["epics"][0]["milestones"][0]["stories"][1]["deps"] = []
         self.write()

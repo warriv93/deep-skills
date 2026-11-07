@@ -7,7 +7,7 @@ Orchestrated run (see SKILL.md) → the stories replace this section; start at t
 Work through `tasks.md` one slice at a time, inline in the main context:
 
 1. Load only the current slice's task lines from `tasks.md`.
-2. `/tdd`: failing tests first (RED), minimum implementation (GREEN), refactor (IMPROVE).
+2. `/tdd`: failing tests first (RED), minimum implementation (GREEN), then refactor (IMPROVE) before the commit: remove the duplication the slice introduced and fold its new special cases into the general rule.
 3. Green → commit, and add the slice's ledger line.
 
 Every slice committed green is not yet done — the gate follows.

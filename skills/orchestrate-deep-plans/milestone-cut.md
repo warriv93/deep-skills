@@ -27,15 +27,19 @@ Walk them yourself, in order, from the epic's brief; the first that splits the w
 8. `defer-performance`: making it fast is separate from making it work → working first, fast later.
 9. `spike`: too unknown to cut → a milestone that answers the question and builds nothing, then cut again from its findings.
 
+In `business-rules` and `simple-complex`, the milestone that adds a second special case of a rule says in its brief to generalise that rule over both cases, so its plan replaces the first special case with one general rule.
+
 **Meta-pattern**, when none fits cleanly: find the core complexity, list its variations, reduce them to one complete slice; the variations become later milestones, each with the pattern its variation follows.
 
 ## Valuable check
 
-A milestone with no user-visible change (a migration, an API nobody calls yet, a refactor) gets a warning naming where to fold it:
+A milestone with no user-visible change (a migration, an API nobody calls yet) gets a warning naming where to fold it:
 
 ```
 ⚠ <id> <title>: no user-visible change. Fold into <id> (<pattern>)?
 ```
+
+A refactor or deletion milestone that removes complexity the next milestones would otherwise pay for stands on its own, with pattern `tidy-first`: its line names those milestones and what it saves them, and gets no warning.
 
 ## Could drop or defer
 
@@ -50,10 +54,11 @@ M4 Book a slot, card only — workflow-steps
 M5 Pay by invoice — data-variations
 ⚠ M6 Slot table migration — major-effort
 ⚠ M6 Slot table migration: no user-visible change. Fold into M4 (workflow-steps)?
+M7 One calendar for every slot type — tidy-first, saves M8 (recurring slots) a second calendar
 Could drop or defer: M5 (card covers the launch)
 ```
 
-Done when every milestone has a pattern and a verdict, every unvaluable one a warning, and the list names each candidate or says none.
+Done when every milestone has a pattern and a verdict, every unvaluable one a warning or a `tidy-first` saving, and the list names each candidate or says none.
 
 ## Sign-off
 

@@ -362,7 +362,8 @@ def cmd_merge(p, args):
     It merges in the worktree that has the milestone's branch checked out, else in the repo checkout, and runs
     quality.install.cmd, then quality.contract[].cmd there to <run dir>/contract.log. The merge that completes a wave
     (no story of the milestone left working or in approval) carries `wave: true` on its `merged` event. Prints one of:
-      MERGED <id> <n> commits; ready: <ids>   story done, commits recorded
+      MERGED <id> <n> commits; ready: <ids>   story done, every commit on story/<id> recorded, then
+        OUT-OF-SCOPE <id> <path>: <why>        per `NOTE out-of-scope` line of the story's current attempt
       CONFLICT <id> <n>                        merge aborted; n = conflicts so far
       RED <id> <cmd> + the log's last 40 lines merge undone (reset --hard ORIG_HEAD)
       INSTALL-FAILED <id> <cmd> + the log's last 40 lines   quality.install failed; merge undone
@@ -445,6 +446,14 @@ def merge_story(p, target, force):
     wave = not any(o.get("status") in ("working", "approval") for o in m.get("stories", []))
     p.event("merged", m["id"], s["id"], into=branch, **({"wave": True} if wave else {}))
     print(f"MERGED {s['id']} {len(commits)} commits; ready: {' '.join(p.ready(m)) or '-'}")
+    for note in out_of_scope(p, m, s):
+        print(f"OUT-OF-SCOPE {s['id']} {note}")
+
+
+def out_of_scope(p, m, s):
+    """The `<path>: <why>` of each `NOTE out-of-scope` line in the story's current attempt (since its last STARTED)."""
+    return [note.removeprefix("out-of-scope ") for _, stage, note in current_attempt(progress_lines(p, m, s))
+            if stage == "NOTE" and note.startswith("out-of-scope ")]
 
 
 def cmd_backfill(p, _):
@@ -843,8 +852,8 @@ def brief_text(m, s, g, context):
     out += [f"- [ ] {tid} {text}" for tid, text in g["tasks"]] + ["", "## Files in scope"] + [f"- {f}" for f in s["files"]]
     out += ["", "## Context"] + [f"- {c}" for c in context] + ["", "## Contract"]
     out += [f"- `{c}`" for c in contract] or ["- the `gates.sh` call (deep-plan's SKILL.md, Shared rules, Contract runs)"]
-    out += ["", "## Done when", f"One commit on story/{s['id']} with trailer `Story: {s['id']}`, the contract green, "
-            "`COMMITTED <sha>` logged."]
+    out += ["", "## Done when", f"The behaviour change as one commit on story/{s['id']} after any tidy commits, each with "
+            f"trailer `Story: {s['id']}`, the contract green, `COMMITTED <sha>` logged."]
     return "\n".join(out) + "\n"
 
 
@@ -981,8 +990,17 @@ def story_trees(p, m, s):
     return trees
 
 
+def register_note_stage(p):
+    """Add NOTE, the story prompt's stage beyond podium's defaults, to `orchestrator.stages`, so `podium log` takes it."""
+    stages = p.data.setdefault("orchestrator", {}).setdefault("stages", {})
+    if "NOTE" not in stages:
+        stages["NOTE"] = {"doing": "Extending shared code", "step": 2, "time": "build"}
+        p.save()
+
+
 def story_prompt(p, m, s, retry=None):
     """phase-3-build.md's story prompt (its single source), filled in for one story."""
+    register_note_stage(p)
     with open(PHASE_3) as f:
         template = re.search(r"Story prompt[^\n]*\n+```\n(.*?)\n```", f.read(), re.S).group(1)
     trees = "\n".join(f"{r}: {t}" + (f" (milestone branch {b})" if b else "") for r, _, t, b in story_trees(p, m, s))
@@ -1510,6 +1528,12 @@ def progress_lines(p, m, s):
             if len(r) > 1 and stamp(r[0]) and STAGE.fullmatch(r[1])]
 
 
+def current_attempt(lines):
+    """The progress lines since the last STARTED, all of them without one."""
+    starts = [i for i, (_, stage, _) in enumerate(lines) if stage == "STARTED"]
+    return lines[starts[-1] if starts else 0:]
+
+
 def peek_stage(lines):
     """`<previous stage>→<last stage> <age> ago`, a repeated stage counted once."""
     if not lines:
@@ -1537,8 +1561,7 @@ def peek_commit(s, lines):
             recorded[repo] = sha
     if recorded:
         return "committed " + " ".join(f"{r + ':' if r else ''}{sha[:7]}" for r, sha in recorded.items())
-    starts = [i for i, (_, stage, _) in enumerate(lines) if stage == "STARTED"]
-    note = next((n for _, stage, n in reversed(lines[starts[-1] if starts else 0:]) if stage == "COMMITTED"), None)
+    note = next((n for _, stage, n in reversed(current_attempt(lines)) if stage == "COMMITTED"), None)
     if note is None:
         return "commit -"
     shas = [x for x in note.split() if re.fullmatch(r"(?:[A-Za-z0-9._-]{1,64}:)?[0-9a-f]{4,64}", x)]
