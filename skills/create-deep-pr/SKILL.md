@@ -10,6 +10,8 @@ Take the current changes to an open GitHub PR: a draft, unless the user passes `
 
 Before any push, also outside `/create-deep-pr`, run `~/.claude/skills/create-deep-pr/scripts/push-preview.sh [<repo>] [<remote>] [<branch>]` and show its output.
 
+Never request a Copilot review (`--add-reviewer @copilot` or otherwise): this skill serves private repos without a Copilot plan. The agent review in step 4b is the PR's review before a human.
+
 Outside Claude Code (Antigravity, Gemini): activate the `claude-tool-map` skill first and translate every tool, model and command through it.
 
 ## 1. Understand the change
@@ -96,22 +98,7 @@ The Start here links need the PR's number, so a new PR gets its body in two pass
 
 End the body with the session's PR attribution line.
 
-## 7. Copilot review
-
-Copilot is a second reviewer, and each comment is a claim to verify.
-
-1. Request it: `gh pr edit <number> --add-reviewer @copilot`. If that fails, for example because Copilot review isn't enabled for the repo, note it in the report and go to step 8.
-2. Wait for it in the background: `~/.claude/skills/create-deep-pr/scripts/copilot-review.sh wait <number>` prints its review of the pushed head, one `COMMENT <id> <path>:<line>` line per comment with the body below. On `TIMEOUT` (15 minutes) or `NOT_REQUESTED`, note it in the report and go to step 8.
-3. Triage every comment. A comment is **reasonable** when you can show the defect it names from the code: reproduce it, or trace the input that triggers it. Decline one that misreads the code, contradicts a decision recorded in the PR or the repo's conventions, or asks for work outside the PR's scope, and write down why.
-4. Fix the reasonable ones as step 3 commits, re-run step 4, and push after a push preview that passes step 6's bar.
-5. Answer every comment in its thread: `copilot-review.sh reply <number> <id> <body-file>`. A fix names its commit and how you checked it, and adds `--resolve`. A decline gives its reason, and its thread stays open for the human reviewer.
-6. Add `Copilot: <n> comments, <m> fixed in <sha>, <k> declined (reasons in the threads)` under Review notes and run `gh pr edit <number> --body-file <file>`.
-
-The fixes get no second Copilot request, so a run reviews once.
-
-Done when every Copilot comment has a reply, every fixed thread is resolved, step 4 is green on the pushed head, and Review notes carries the Copilot line.
-
-## 8. Report
+## 7. Report
 
 End with the PR link on its own line so it's clickable. Follow it with 2-3 lines covering:
 
@@ -119,5 +106,4 @@ End with the PR link on its own line so it's clickable. Follow it with 2-3 lines
 - the checks that ran
 - the agent review: findings fixed and declined, and the open nits
 - whether screenshots were posted, or why not
-- Copilot's comments: how many were fixed and declined, each decline's reason, or why Copilot didn't review
 - files left out of the commit

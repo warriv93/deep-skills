@@ -10,9 +10,9 @@ Takes finished work in any GitHub repo to a draft pull request: branched, commit
 - Has one fresh-context agent review the whole diff for defects and design (logic the repo already has, bolted-on special cases, pass-through modules), and fixes its blockers and should-fixes before the push.
 - For UI changes, boots the app (an instance already running counts only if it serves this checkout and started after HEAD), screenshots each changed screen with Playwright, with before and after shots when the app starts fast, and posts them to a `pr-screenshots` orphan branch.
 - Writes the body as an inverted pyramid shaped like 3-5 of the repo's recent merged PRs, with deep links into the diff for the lines that carry the change. Updates the PR instead when one is already open for the branch.
-- Requests a Copilot review, fixes the comments it can show are real, answers each in its thread, and ends with the PR link, the checks that ran and the files left out.
+- Ends with the PR link, the checks that ran and the files left out. It never requests a Copilot review.
 
-What leaves the machine: the branch, the `pr-screenshots` branch, the PR, the Copilot request, the fix commits and the thread replies. The skill pushes on its own once the checks are green, so invoking it is the go-ahead. Rebasing on a conflict, and pushing past a failure the branch didn't cause, wait for you.
+What leaves the machine: the branch, the `pr-screenshots` branch, and the PR. The skill pushes on its own once the checks are green, so invoking it is the go-ahead. Rebasing on a conflict, and pushing past a failure the branch didn't cause, wait for you.
 
 ## Use
 
