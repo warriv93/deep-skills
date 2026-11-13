@@ -6,7 +6,7 @@
    - `MISSING <id> critical` → the story runs on `sonnet` until its section gets a `**Critical**: yes` or `no` line: yes for correctness-critical stories (money, dates and time zones, concurrency, auth, migrations, core algorithms). A section without the line whose title, goal or tasks name one of those is already `opus`: check those the same way.
    - `MISSING <id> context` → add a `**Context**:` line to its section (Briefs, below).
    - `DEPS-DIFFER <id> section=<ids> field=<ids>` → the Dependencies section and the story's `**Dependencies**:` line disagree, and `deps` holds every story either names: make them agree.
-   - `MISSING <id> <field>` for `story` (no `**Goal**:`), `deps` (neither the Dependencies section nor a `**Dependencies**:` line names it), `files` or `tasks`; `MISSING <id> dep <id>` (it names a user story with no section); `MISSING <id> ref <ref>` (a reference that matches no heading) → fix `tasks.md` or the planning file.
+   - `MISSING <id> <field>` for `story` (no `**Goal**:`), `deps` (neither the Dependencies section nor a `**Dependencies**:` line names it), `files` or `tasks`; `MISSING <id> dep <id>` (it names a user story with no section); `MISSING <id> ref <ref>` (a reference that matches no heading); `MISSING <id> path <name>` (a bare file name another story also names, so the overlap check can't tell whether they share it: write its path from the repo root) → fix `tasks.md` or the planning file.
    - `OVERLAP <a> <b> <file>`: two stories with no dependency path share a file, so `<b>` waits for `<a>` and they land in different waves.
    - `WAVES <ids> | <ids> …`; `CYCLE <ids>` → those stories' dependencies loop and nothing was written: fix the Dependencies section.
 

@@ -889,6 +889,15 @@ def heading_ref(path, heading):
     return f"`{path}#{slug(heading) if '`' in heading else heading}`"
 
 
+def unresolved_names(p, files):
+    """{story: the bare file names it shares with another story's file by basename and that aren't at the repo root}:
+    breakdown compares paths as written, so such a name can hide an overlap or make a false one."""
+    def base(f):
+        return f.rsplit("/", 1)[-1]
+    return {x: [f for f in fs if "/" not in f and not os.path.exists(os.path.join(p.repo, f))
+                and any(base(g) == f for y, gs in files.items() if y != x for g in gs)] for x, fs in files.items()}
+
+
 def brief_text(m, s, g, context):
     """phase-2-breakdown.md's brief for one story, from its tasks.md section."""
     contract = [c["cmd"] for c in (m.get("quality") or {}).get("contract") or [] if isinstance(c, dict) and c.get("cmd")]
@@ -917,6 +926,7 @@ def cmd_breakdown(p, args):
       STORY <id> <repo> deps=<ids|-> files=<n> missing=<fields|->
       MISSING <id> <field> | MISSING <id> dep <id> | MISSING <id> ref <reference brief can't find>
       DEPS-DIFFER <id> section=<ids|-> field=<ids|->   the two disagree: deps= is every story either names
+      MISSING <id> path <name>              a bare file name another story also names: write its path from the repo
       OVERLAP <earlier> <later> <file>      the later one waits for the earlier: a shared file, no dependency path
       KEPT <id> started                     left as it is
       WAVES <ids> | <ids> …                 from deps and overlapAfter
@@ -958,6 +968,7 @@ def cmd_breakdown(p, args):
             if not reaches(a, b, deps) and not reaches(b, a, deps):
                 after[b] = list(dict.fromkeys(after[b] + [a]))
                 lines.append(f"OVERLAP {a} {b} {f}")
+    bare = unresolved_names(p, files)
     rel, repo = run_path(p, path), os.path.basename(p.repo)
     existing = {s.get("id"): s for s in m.get("stories") or []}
     stories, briefs, kept, gaps = [], {}, [], 0
@@ -977,10 +988,11 @@ def cmd_breakdown(p, args):
             section, field = g["depsDiffer"]
             print(f"DEPS-DIFFER {sid} section={id_list(section)} field={id_list(field)}")
         gone = [f"dep {prefix}{d}" for d in g["deps"] or [] if d not in ident]
+        paths = [f"path {name}" for name in bare[sid]]
         refs = [f"ref {ref}" for ref in brief_sections(p, m, sid, text, os.path.dirname(os.path.join(p.root, s["brief"])), path)[1]]
-        for gap in missing + gone + refs:
+        for gap in missing + gone + paths + refs:
             print(f"MISSING {sid} {gap}")
-        gaps += len(missing + gone + refs)
+        gaps += len(missing + gone + paths + refs)
         if sid in existing and started(existing[sid]):
             kept.append(f"KEPT {sid} started")
             continue

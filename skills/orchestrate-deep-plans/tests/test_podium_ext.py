@@ -643,6 +643,14 @@ class Breakdown(Run):
         self.assertEqual([line for line in out.splitlines() if line.startswith(("OVERLAP", "WAVES"))],
                          ["OVERLAP S2 S3 src/invites/service.py", "OVERLAP S2 S3 src/invites/store.py", "WAVES S2 | S3 | S1"])
 
+    def test_a_bare_file_name_another_story_also_names_is_missing_its_path(self):
+        self.tasks_md(TASKS.replace("Store the acceptance in `src/invites/store.py`", "Store the acceptance in `store.py`")
+                      .replace("Show the list in src/web/invites.tsx", "Show the list in `invites.tsx`, from `README.md`")
+                      .replace("failing invite test in tests/test_invite.py", "failing invite test in tests/test_invite.py per `README.md`"))
+        open(os.path.join(self.main, "README.md"), "w").close()
+        out = self.podium("breakdown", self.tasks, "--dry-run")
+        self.assertEqual([line for line in out.splitlines() if " path " in line], ["MISSING S2 path store.py"])
+
     def test_a_prefix_names_the_stories_beside_another_milestone(self):
         out = self.podium("breakdown", self.tasks, "--prefix", "W", "--dry-run")
         for want in ("STORY W1 core deps=-", "STORY W2 core deps=W1", "MISSING W2 dep W9", "OVERLAP W2 W3", "WAVES W1 | W2 | W3"):
