@@ -79,6 +79,7 @@ Stay on branch story/<id> and inside the brief's files in scope, except to exten
 
 `podium merge <milestone>/<id>… --land --next` merges each `story/<id>` in turn into its milestone's branch, in the worktree that has that branch checked out, runs the contract there, records the outcome and lands the story before the next id; a conflict or a red contract undoes that story's merge. The first result other than `MERGED` stops the queue with `STOPPED <id> <result>` and `PENDING <ids>`, the ids it never reached: act on that story's lines below, then queue the pending ids again. A contract runs for minutes, longer while other builds load the machine: run `merge` as a background `Bash` command with the longest timeout (2 hours), and act on each story's first word:
 
+- **`EMPTY <id>`** → nothing merged: `story/<id>` holds no commit beyond the milestone branch, so the story's work isn't on it. Tell its agent to put its commit on `story/<id>` and log `COMMITTED <sha>` again; merge again once `git log <milestone branch>..story/<id>` lists it.
 - **`CONFLICT <id> 1`** → tell its agent to rebase `story/<id>` onto the milestone branch, re-run the contract and log `COMMITTED <new sha>`. **`CONFLICT <id> 2`** → a failed attempt.
 - **`RED`** → the merge is undone; a failed attempt, with the printed log tail as its reason.
 - **`INSTALL-FAILED <id> <cmd>`** → the merge is undone, and the printed log tail shows why the milestone's `quality.install` failed. Not a failed attempt: leave the story and its agent alone, fix the cause as at Dispatch, and merge again.

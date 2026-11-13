@@ -339,7 +339,7 @@ def cmd_approve(p, args):
     print(f"APPROVED {len(picked)}")
 
 
-MERGE_RESULTS = {1: "CONTRACT-CHANGED", 2: "CONFLICT", 3: "RED", 4: "INSTALL-FAILED"}
+MERGE_RESULTS = {1: "CONTRACT-CHANGED", 2: "CONFLICT", 3: "RED", 4: "INSTALL-FAILED", 5: "EMPTY"}
 LAND_RESULTS = {1: "NOT-MERGED"}
 
 
@@ -366,13 +366,14 @@ def cmd_merge(p, args):
     (no story of the milestone left working or in approval) carries `wave: true` on its `merged` event. Prints one of:
       MERGED <id> <n> commits; ready: <ids>   story done, every commit on story/<id> recorded, then
         OUT-OF-SCOPE <id> <path>: <why>        per `NOTE out-of-scope` line of the story's current attempt
+      EMPTY <id>                               story/<id> has no commit beyond the milestone's branch; nothing merged
       CONFLICT <id> <n>                        merge aborted; n = conflicts so far
       RED <id> <cmd> + the log's last 40 lines merge undone (reset --hard ORIG_HEAD)
       INSTALL-FAILED <id> <cmd> + the log's last 40 lines   quality.install failed; merge undone
       CONTRACT-CHANGED <digest> <repo>: <cmd>  not approved on this machine (`approve`); nothing merged
     Several ids, or --land, are a queue merged in order, each printing its line; --land runs `land` (--next passed on)
     on each MERGED before the next id. The first result other than MERGED stops the queue, which exits as that step did:
-      STOPPED <id> <CONFLICT|RED|INSTALL-FAILED|CONTRACT-CHANGED|NOT-MERGED|ERROR: <why>>
+      STOPPED <id> <EMPTY|CONFLICT|RED|INSTALL-FAILED|CONTRACT-CHANGED|NOT-MERGED|ERROR: <why>>
       PENDING <ids> | PENDING -                   the ids it never reached
     A milestone another person owns is refused unless --force.
     """
@@ -400,7 +401,8 @@ def cmd_merge(p, args):
 
 
 def merge_story(p, target, force):
-    """`merge` of one story, exiting with its result's code: 1 CONTRACT-CHANGED, 2 CONFLICT, 3 RED, 4 INSTALL-FAILED."""
+    """`merge` of one story, exiting with its result's code: 1 CONTRACT-CHANGED, 2 CONFLICT, 3 RED, 4 INSTALL-FAILED,
+    5 EMPTY."""
     mid, _, sid = target.rpartition("/")
     require_owner(p, p.story(sid, mid or None)[0]["id"], force)
     m, s = p.story(sid, mid or None)  # claiming pulls, which replaces p.data
@@ -414,6 +416,9 @@ def merge_story(p, target, force):
     if git(p, "rev-parse", "--abbrev-ref", "HEAD", cwd=cwd).stdout.strip() != branch:
         git(p, "switch", "--end-of-options", branch, cwd=cwd)
     commits = git_commits(p, ["--end-of-options", f"{branch}..{story_branch}"])
+    if not commits:
+        print(f"EMPTY {s['id']}")
+        sys.exit(5)
     if git(p, "merge", "--no-ff", "--no-edit", story_branch, check=False, cwd=cwd).returncode:
         git(p, "merge", "--abort", check=False, cwd=cwd)
         s["conflicts"] = s.get("conflicts", 0) + 1

@@ -217,6 +217,15 @@ class Merge(Run):
         self.podium("merge", "S2")
         self.assertEqual([(e["story"], e.get("wave")) for e in self.events() if e["type"] == "merged"], [("S1", None), ("S2", True)])
 
+    def test_a_story_branch_without_commits_is_refused_and_stays_unfinished(self):
+        self.story_branch("S1")
+        self.podium("set", "S1", "status=working")
+        before = git(self.feature, "rev-parse", "HEAD")
+        self.assertEqual(self.podium("merge", "S1", code=5), "EMPTY S1\n")
+        self.assertEqual(git(self.feature, "rev-parse", "HEAD"), before)
+        self.assertEqual(self.milestone()["stories"][0]["status"], "working")
+        self.assertNotIn("merged", [e["type"] for e in self.events()])
+
     def test_a_conflict_aborts_the_merge_and_counts_it(self):
         commit(self.story_branch("S1"), "a.txt", "feat: one", text="story")
         commit(self.feature, "a.txt", "meanwhile", text="milestone")
@@ -300,6 +309,17 @@ class MergeQueue(Run):
             "MERGED S2 1 commits; ready: -", "LANDED S2; wave waits on S3",
             "MERGED S3 1 commits; ready: S4", "LANDED S3; launched S4", f"PROMPT {prompt} model=sonnet"])
         self.assertEqual(self.statuses(), ["done", "done", "done", "working"])
+
+    def test_an_empty_story_branch_stops_the_queue_before_the_next_wave_launches(self):
+        self.data["epics"][0]["milestones"][0].update(buildAll=True, quality={"contract": []})
+        self.write()
+        git(os.path.join(self.tmp, "s3"), "reset", "-q", "--hard", "HEAD~1")
+        out = self.podium("merge", "S1", "S2", "S3", "--land", "--next", code=5)
+        self.assertEqual(out.splitlines(), [
+            "MERGED S1 1 commits; ready: -", "LANDED S1; wave waits on S2 S3",
+            "MERGED S2 1 commits; ready: -", "LANDED S2; wave waits on S3",
+            "EMPTY S3", "STOPPED S3 EMPTY", "PENDING -"])
+        self.assertEqual(self.statuses(), ["done", "done", "working", "todo"])
 
     def test_an_unknown_story_stops_the_queue_with_why(self):
         out = self.podium("merge", "S1", "S9", "S3", "--land", code=1)
