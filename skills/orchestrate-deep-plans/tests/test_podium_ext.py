@@ -654,6 +654,77 @@ class Breakdown(Run):
         out = self.podium("breakdown", self.tasks, "--dry-run")
         self.assertEqual([line for line in out.splitlines() if line.endswith(" deps")], ["MISSING S1 deps", "MISSING S2 deps", "MISSING S3 deps"])
 
+    def without_section(self, s1="", s2="", s3=""):
+        text = TASKS[:TASKS.index("## Dependencies")]
+        for title, field in (("Send an invite", s1), ("Accept an invite", s2), ("List invites", s3)):
+            head = next(line for line in text.splitlines() if title in line)
+            text = text.replace(head, f"{head}\n\n{field}" if field else head)
+        return text
+
+    def test_reads_each_storys_own_dependencies_field_without_a_section(self):
+        self.tasks_md(self.without_section("**Dependencies**: None", "**Dependencies**: User Story 1",
+                                           "**Dependencies**: User Story 1, User Story 2"))
+        out = self.podium("breakdown", self.tasks, "--dry-run")
+        self.assertIn("STORY S2 core deps=S1 files=2 missing=-", out)
+        self.assertIn("STORY S3 core deps=S1,S2 files=2", out)
+        self.assertNotIn(" deps\n", out)
+        self.assertIn("WAVES S1 | S2 | S3", out)
+
+    def test_a_section_and_a_field_that_agree_print_nothing_more(self):
+        self.tasks_md(TASKS.replace("**Goal**: The invitee", "**Dependencies**: US1, US9\n\n**Goal**: The invitee"))
+        out = self.podium("breakdown", self.tasks, "--dry-run")
+        self.assertIn("STORY S2 core deps=S1 ", out)
+        self.assertNotIn("DEPS-DIFFER", out)
+
+    def test_a_field_that_disagrees_with_the_section_adds_its_stories_and_says_so(self):
+        self.tasks_md(TASKS.replace("- [ ] T030", "**Dependencies**: User Story 1\n\n- [ ] T030"))
+        out = self.podium("breakdown", self.tasks, "--dry-run")
+        self.assertIn("STORY S3 core deps=S1 ", out)
+        self.assertIn("DEPS-DIFFER S3 section=- field=S1", out)
+
+    def test_a_story_the_section_skips_takes_its_field(self):
+        self.tasks_md(TASKS.replace("- US3 needs nothing from US1–US2; it can start after Foundational - may integrate with US2\n", "")
+                      .replace("- [ ] T030", "**Dependencies**: User Story 2\n\n- [ ] T030"))
+        out = self.podium("breakdown", self.tasks, "--dry-run")
+        self.assertIn("STORY S3 core deps=S2 ", out)
+        self.assertNotIn("DEPS-DIFFER", out)
+
+    def test_check_writes_nothing_and_fails_on_a_missing_line(self):
+        before = self.state()
+        out = self.podium("breakdown", "--check", self.tasks, "--milestone", "M1", code=1)
+        self.assertIn("MISSING S3 context", out)
+        self.assertIn("WAVES S1 | S2 | S3", out)
+        self.assertEqual((self.state(), self.events(), self.brief("S1")), (before, [], None))
+
+    def test_check_passes_a_tasks_file_with_nothing_missing(self):
+        clean = (TASKS.replace(" and US9", "").replace("`architecture.md#Invite service`, `architecture.md#Accept flow`", "`architecture.md#Invite service`")
+                 .replace("- [ ] T030", "**Goal**: The owner lists them.\n\n**Critical**: no\n\n**Context**: `architecture.md#Invite service`\n\n- [ ] T030"))
+        self.tasks_md(clean)
+        out = self.podium("breakdown", self.tasks, "--check")
+        self.assertNotIn("MISSING", out)
+        self.assertEqual(self.milestone()["stories"], [])
+
+    def test_refs_resolve_beside_a_tasks_file_in_its_own_worktree_first(self):
+        with open(os.path.join(self.run_dir, "spec-brief.md"), "w") as f:
+            f.write("# Another milestone\n\n## Objective\nthe other one\n")
+        tree = os.path.join(self.tmp, "core-plan-M2", ".deep-plan")
+        os.makedirs(tree)
+        with open(os.path.join(tree, "spec-brief.md"), "w") as f:
+            f.write("# Brief\n\n## Objective\ninvites for all\n\n## Limits\nten a day\n")
+        with open(os.path.join(tree, "architecture.md"), "w") as f:
+            f.write("# Arch\n\n## Invite service\nown service text\n\n## Accept flow\naccept flow text\n")
+        shutil.copy(os.path.join(os.path.dirname(self.tasks), "spec.md"), tree)
+        self.tasks = os.path.join(tree, "tasks.md")
+        self.tasks_md(TASKS.replace("`architecture.md#Invite service`\n", "`architecture.md#Invite service`, `spec-brief.md#Limits`\n"))
+        out = self.podium("breakdown", self.tasks)
+        self.assertNotIn("MISSING S1 ref", out)
+        self.assertNotIn("MISSING S2 ref", out)
+        brief = self.podium("brief", "S1")
+        for want in ("own service text", "ten a day", "invites for all"):
+            self.assertIn(want, brief)
+        for unwanted in ("the other one", "\nservice text", "MISSING"):
+            self.assertNotIn(unwanted, brief)
+
     def test_refuses_a_file_without_user_stories_or_an_unknown_milestone(self):
         before = self.state()
         self.assertIn("no milestone 'M9'", self.podium("breakdown", self.tasks, "--milestone", "M9", code=1))

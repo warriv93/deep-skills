@@ -38,6 +38,7 @@ Start every turn by reading the ledger and resuming from it; create it if missin
 - Before every question to the user and every sign-off gate, run `podium human`. Unavailable or mobile → orchestrate-deep-plans' rule for that mode (its SKILL.md, The human) replaces or trims asking.
 - While a sign-off gate waits on the user, `set . needsYou=<{reason}>`; `set . needsYou=null` on sign-off.
 - Where a phase would ask the user to `/clear` and re-invoke `/deep-plan`, stop at that checkpoint and return to `/orchestrate-deep-plans` instead: it carries on in a fresh subagent.
+- Before Phase 2's checkpoint, `podium breakdown --check <tasks.md> --milestone <id>` exits 0: each `MISSING` line it prints is a gap in `tasks.md` or a planning file to fix (orchestrate-deep-plans' phase-2-breakdown.md, Break it down). It writes nothing, so rerun it after every fix.
 - After Phase 2's checkpoint, return to `/orchestrate-deep-plans`. It builds the slices as stories and re-enters Phase 3 at its quality gate.
 
 ## Shared rules

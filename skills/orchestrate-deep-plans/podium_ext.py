@@ -586,17 +586,26 @@ def md_sections(path):
                    for j, (lvl, text, i) in enumerate(heads)]
 
 
-def planning_files(p, m):
+def planning_dirs(p, m, tasks=None):
+    """Where the milestone's own planning files are, before the run dir's: beside its tasks.md, then its planning
+    worktree's .deep-plan and the worktree itself, since a milestone planned in its own worktree keeps them there."""
+    tree = planning_tree(p, m)
+    return list(dict.fromkeys(d for d in (tasks and os.path.dirname(tasks), tree and os.path.join(tree, ".deep-plan"), tree) if d))
+
+
+def planning_files(p, m, dirs=()):
     """The milestone's planning files that exist: its .md `artifacts`, its `spec` (a folder means its spec.md,
-    plan.md and tasks.md), architecture*.md and spec/{spec,tasks}.md, each relative to the run dir or its repo."""
+    plan.md and tasks.md), architecture*.md and spec/{spec,tasks}.md, each relative to the first of `dirs`, the run
+    dir or its repo that has it."""
+    bases = (*dirs, p.root, p.repo)
     names = [a["path"] for a in m.get("artifacts") or [] if str(a.get("path", "")).endswith(".md")]
     spec = m.get("spec")
     if spec:
         names += [os.path.join(spec, n) for n in ("spec.md", "plan.md", "tasks.md")] if not spec.endswith(".md") else [spec]
-    names += ["spec/spec.md", "spec/tasks.md"] + sorted(os.path.relpath(f, p.root) for f in glob.glob(os.path.join(p.root, "architecture*.md")))
+    names += ["spec/spec.md", "spec/tasks.md"] + sorted({os.path.basename(f) for b in bases[:-1] for f in glob.glob(os.path.join(b, "architecture*.md"))})
     out = {}
     for n in names:
-        for base in (p.root, p.repo):
+        for base in bases:
             full = os.path.realpath(os.path.join(base, os.path.expanduser(n)))
             if os.path.isfile(full):
                 out.setdefault(full, None)
@@ -613,9 +622,9 @@ def brief_refs(text):
     return list(dict.fromkeys(refs))
 
 
-def find_file(p, name, brief_dir, files):
-    """A referenced planning file: by path from the brief, the run dir or its repo, else by name among the planning files."""
-    for base in (brief_dir, p.root, p.repo):
+def find_file(p, name, dirs, files):
+    """A referenced planning file: by path from `dirs`, the run dir or its repo, else by name among the planning files."""
+    for base in (*dirs, p.root, p.repo):
         full = os.path.realpath(os.path.join(base, name))
         if os.path.isfile(full):
             return full
@@ -660,10 +669,16 @@ def cmd_brief(p, args):
         print(f"MISSING {ref}")
 
 
-def brief_sections(p, m, sid, brief, brief_dir):
+def brief_sections(p, m, sid, brief, brief_dir, tasks=None):
     """({file: {(first line, end line, heading)}}, [each reference that matches nothing]) for story `sid`'s brief text,
-    as cmd_brief prints them."""
-    files = planning_files(p, m)
+    as cmd_brief prints them. A reference resolves from the brief's own folder, then the milestone's planning_dirs,
+    `tasks` being its tasks.md, else the tasks.md the brief references, then the run dir."""
+    refs = brief_refs(brief)
+    if not tasks:
+        found = (find_file(p, name, [brief_dir, *planning_dirs(p, m)], []) for name, _ in refs if name and os.path.basename(name) == "tasks.md")
+        tasks = next((f for f in found if f), None)
+    dirs = [brief_dir] + planning_dirs(p, m, tasks)
+    files = planning_files(p, m, dirs)
     picked, missing = {}, []
 
     def pick(f, test):
@@ -672,8 +687,8 @@ def brief_sections(p, m, sid, brief, brief_dir):
         picked.setdefault(f, set()).update(hits)
         return bool(hits)
 
-    for name, ref in brief_refs(brief):
-        f = find_file(p, name, brief_dir, files) if name else None
+    for name, ref in refs:
+        f = find_file(p, name, dirs, files) if name else None
         words = ref.split(" ")
         for n in range(len(words), 0, -1):  # a bare reference runs on into prose: drop words until a heading fits
             want = lambda lvl, h, r=" ".join(words[:n]): norm(h) == norm(r) or slug(h) == r.strip().lower()
@@ -687,18 +702,14 @@ def brief_sections(p, m, sid, brief, brief_dir):
         pick(f, lambda lvl, h: lvl > 1 and norm(h) in quoted)
         if os.path.basename(f) == "tasks.md":
             pick(f, lambda lvl, h: own.match(h.strip("`*_ ")))
-    if spec_brief := find_spec_brief(p, m):
+    if spec_brief := find_spec_brief(p, dirs):
         pick(spec_brief, lambda lvl, h: re.fullmatch(r"objectives?", norm(h)))
     return picked, missing
 
 
-def find_spec_brief(p, m):
-    """deep-plan's .deep-plan/spec-brief.md, in the run dir or the milestone's worktree, or None."""
-    tree = planning_tree(p, m)
-    for path in (os.path.join(p.root, "spec-brief.md"), tree and os.path.join(tree, ".deep-plan", "spec-brief.md")):
-        if path and os.path.isfile(path):
-            return os.path.realpath(path)
-    return None
+def find_spec_brief(p, dirs):
+    """deep-plan's spec-brief.md, in the first of the milestone's planning `dirs` that has it, else the run dir's, or None."""
+    return next((os.path.realpath(f) for f in (os.path.join(d, "spec-brief.md") for d in (*dirs, p.root)) if os.path.isfile(f)), None)
 
 
 # --- breakdown: a milestone's tasks.md into its stories and their briefs ----------
@@ -740,6 +751,22 @@ def story_deps(lines):
     return deps
 
 
+def field_deps(text, k):
+    """The user-story numbers a story's own `**Dependencies**:` field names, none when it starts `none`, `no` or a dash."""
+    if re.match(r"\s*(?:none|no|nothing|n/a|[—–-]+(?:\s|$))", text, re.I):
+        return []
+    return [n for n in story_refs(text) if n != k]
+
+
+def merged_deps(section, field):
+    """(deps, whether they differ) of a story from the Dependencies section and its own field, each None when it says
+    nothing: when they differ, every story either names, since a missed dependency breaks a wave and an extra one only
+    costs parallelism."""
+    if section is None or field is None:
+        return (field if section is None else section), False
+    return list(dict.fromkeys(section + field)), set(section) != set(field)
+
+
 def yes_no(text):
     word = (text or "").strip().lower()
     return True if word.startswith("yes") else False if word.startswith("no") else None
@@ -768,7 +795,7 @@ def parse_tasks(path):
     A group is a `## Phase <n>: User Story <k> - <title> (Priority: P<n>)` section: its `**Goal**:`, `**Critical**:`
     and `**Context**:` fields, its task lines (`- [ ] T012 [P] [US1] … in path/to/file`, continuation lines joined),
     the files they name, the spec.md heading of its user story, and its deps from the file's Dependencies section
-    (story_deps). A story with no `**Critical**:` field is critical when its title, goal or tasks name money, dates,
+    (story_deps) and its own `**Dependencies**:` field (merged_deps). A story with no `**Critical**:` field is critical when its title, goal or tasks name money, dates,
     time zones, concurrency, auth, migrations or algorithms. A field neither gives is None.
     """
     lines, secs = md_sections(path)
@@ -800,8 +827,11 @@ def parse_tasks(path):
         critical = yes_no(fields.get("critical"))
         if critical is None and CRITICAL.search(" ".join([title, goal or ""] + [t for _, t in tasks])):
             critical = True
+        own = field_deps(fields["dependencies"], k) if "dependencies" in fields else None
+        section = None if deps is None else deps.get(k)
+        merged, differ = merged_deps(section, own)
         groups.append({"k": k, "heading": heading.strip(), "title": title, "story": goal,
-                       "deps": None if deps is None else deps.get(k), "critical": critical,
+                       "deps": merged, "depsDiffer": (section, own) if differ else None, "critical": critical,
                        "context": listed(fields.get("context")),
                        "spec": next((h for h in spec_heads if re.match(rf"user story {k}\b", norm(h))), None),
                        "files": list(dict.fromkeys(f for _, t in tasks for f in task_paths(t))),
@@ -875,28 +905,31 @@ def started(s):
 
 
 def cmd_breakdown(p, args):
-    """<tasks.md> [--milestone M] [--prefix P] [--dry-run] [--force]: the milestone's stories and briefs from deep-plan's
-    speckit tasks.md (phase-2-breakdown.md).
+    """<tasks.md> [--milestone M] [--prefix P] [--dry-run | --check] [--force]: the milestone's stories and briefs from
+    deep-plan's speckit tasks.md (phase-2-breakdown.md).
 
     One story per `## Phase <n>: User Story <k>` section, id `S<k>`, or `<P><k>` with --prefix: title, summary, files
-    from its task lines, deps from the Dependencies section, overlapAfter, critical and its model, and its brief at
+    from its task lines, deps from the Dependencies section and its own `**Dependencies**:` field, overlapAfter,
+    critical and its model, and its brief at
     podium/stories/<M>/<id>.md. A rerun updates each story in place; a story already started stays as it is.
       STORY <id> <repo> deps=<ids|-> files=<n> missing=<fields|->
       MISSING <id> <field> | MISSING <id> dep <id> | MISSING <id> ref <reference brief can't find>
+      DEPS-DIFFER <id> section=<ids|-> field=<ids|->   the two disagree: deps= is every story either names
       OVERLAP <earlier> <later> <file>      the later one waits for the earlier: a shared file, no dependency path
       KEPT <id> started                     left as it is
       WAVES <ids> | <ids> …                 from deps and overlapAfter
       CYCLE <ids>                           the stories on a loop of dependencies: nothing written, exit 1
-    --dry-run prints the same and writes nothing.
+    --dry-run prints the same and writes nothing; --check also exits 1 on any MISSING line, for a planner's tasks.md.
     """
-    usage = "breakdown <tasks.md> [--milestone M] [--prefix P] [--dry-run] [--force]"
+    usage = "breakdown <tasks.md> [--milestone M] [--prefix P] [--dry-run | --check] [--force]"
     values, rest = split_flags(args, ("--milestone", "--prefix"), usage)
     named, prefix = values.get("--milestone"), values.get("--prefix", "S")
-    switches = [a for a in rest if a in ("--dry-run", "--force")]
+    switches = [a for a in rest if a in ("--dry-run", "--check", "--force")]
     rest = [a for a in rest if a not in switches]
     if len(rest) != 1 or not re.fullmatch(r"[A-Za-z]{1,8}", prefix):
         sys.exit(usage)
-    path, dry = os.path.abspath(rest[0]), "--dry-run" in switches
+    path, check = os.path.abspath(rest[0]), "--check" in switches
+    dry = check or "--dry-run" in switches
     if not os.path.isfile(path):
         sys.exit(f"no tasks file at {path}")
     m = p.milestone(named)
@@ -925,7 +958,8 @@ def cmd_breakdown(p, args):
                 lines.append(f"OVERLAP {a} {b} {f}")
     rel, repo = run_path(p, path), os.path.basename(p.repo)
     existing = {s.get("id"): s for s in m.get("stories") or []}
-    stories, briefs, kept = [], {}, []
+    stories, briefs, kept, gaps = [], {}, [], 0
+    id_list = lambda ks: ",".join(ident.get(k, f"{prefix}{k}") for k in ks) or "-"
     for g in groups:
         sid = ident[g["k"]]
         context = g["context"] + ([heading_ref(run_path(p, parsed["spec"]), g["spec"])] if g["spec"] else [])
@@ -937,13 +971,14 @@ def cmd_breakdown(p, args):
              "brief": os.path.relpath(os.path.join(p.dir, "stories", mid, f"{sid}.md"), p.root)}
         text = brief_text(m, s, g, context + [heading_ref(rel, g["heading"])])
         print(f"STORY {sid} {repo} deps={','.join(s['deps']) or '-'} files={len(s['files'])} missing={','.join(missing) or '-'}")
-        for k in missing:
-            print(f"MISSING {sid} {k}")
-        for d in g["deps"] or []:
-            if d not in ident:
-                print(f"MISSING {sid} dep {prefix}{d}")
-        for ref in brief_sections(p, m, sid, text, os.path.dirname(os.path.join(p.root, s["brief"])))[1]:
-            print(f"MISSING {sid} ref {ref}")
+        if g["depsDiffer"]:
+            section, field = g["depsDiffer"]
+            print(f"DEPS-DIFFER {sid} section={id_list(section)} field={id_list(field)}")
+        gone = [f"dep {prefix}{d}" for d in g["deps"] or [] if d not in ident]
+        refs = [f"ref {ref}" for ref in brief_sections(p, m, sid, text, os.path.dirname(os.path.join(p.root, s["brief"])), path)[1]]
+        for gap in missing + gone + refs:
+            print(f"MISSING {sid} {gap}")
+        gaps += len(missing + gone + refs)
         if sid in existing and started(existing[sid]):
             kept.append(f"KEPT {sid} started")
             continue
@@ -957,6 +992,8 @@ def cmd_breakdown(p, args):
     if stuck:
         print(f"CYCLE {' '.join(x for x in stuck if reaches(x, x, order))}")
         sys.exit("breakdown: the dependencies loop, nothing written")
+    if check and gaps:
+        sys.exit(f"breakdown --check: {gaps} MISSING")
     if dry:
         return
     for sid, text in briefs.items():
