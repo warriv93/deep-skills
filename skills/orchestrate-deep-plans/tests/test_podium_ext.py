@@ -696,6 +696,20 @@ class Handoff(Run):
                      "once landed"):
             self.assertIn(want, text)
 
+    def test_appends_the_runs_standing_context_to_every_handoff(self):
+        with open(os.path.join(self.run_dir, "podium", "handoff-context.md"), "w") as f:
+            f.write("- Never use port 3000.\n- E2E runs one at a time.\n")
+        for kind in ("plan", "gate"):
+            self.assertTrue(self.handoff(kind).endswith("\n\n## Orchestrator context\n- Never use port 3000.\n- E2E runs one at a time.\n"))
+
+    def test_a_context_file_with_its_own_heading_gets_it_once(self):
+        with open(os.path.join(self.run_dir, "podium", "handoff-context.md"), "w") as f:
+            f.write("## Orchestrator context\n\n- Never commit .env.\n")
+        self.assertEqual(self.handoff("gate").count("## Orchestrator context"), 1)
+
+    def test_without_a_context_file_adds_no_heading(self):
+        self.assertNotIn("Orchestrator context", self.handoff("gate"))
+
     def test_refuses_an_unknown_milestone_or_kind(self):
         self.assertIn("no milestone 'M9'", self.podium("handoff", "M9", "plan", code=1))
         self.assertIn("handoff <milestone> plan|ahead|gate|retro", self.podium("handoff", "M1", "review", code=1))

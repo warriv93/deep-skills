@@ -31,6 +31,7 @@ deep-plan's ledger and files stay deep-plan's. This skill keeps its own files in
 | `podium/watcher.json` | the watcher, its heartbeat; the Podium refuses requests without it |
 | `podium/stories/<milestone>/<id>.md` — the story's **brief** | the orchestrator, through `podium breakdown` |
 | `podium/handoffs/<milestone>-<plan, ahead, gate or retro>.md` — a planning, gate or retro subagent's prompt | the orchestrator, through `podium handoff` |
+| `podium/handoff-context.md` — the run-wide rules every handoff prompt carries | the orchestrator |
 | `podium/stories/<milestone>/<id>.prompt` — its story prompt, for a subagent | the orchestrator, at dispatch |
 | `podium/stories/<milestone>/<id>.progress` | that story's agent, append-only, through `podium log` |
 | `domain-stories/<epic or milestone>/`, committed: per story `<Title>.story.json` and `<Title>.egn.svg` | that epic's or milestone's drawing subagent |

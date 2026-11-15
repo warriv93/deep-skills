@@ -1513,6 +1513,7 @@ def cmd_handoff(p, args):
     landing (phase-4-handback.md), `retro` records findings on a landed milestone's friction (phase-5-retro.md).
       PROMPT <file> model=<model>          hand the file to the Agent tool
       SKIP no friction                     retro only: nothing in its events to look into; no file written
+    With podium/handoff-context.md in the run, every prompt ends with it under `## Orchestrator context`.
     A retro first records the gate's Design rows as a `design-<repo>` finding (record_design), printing its FINDING line.
     """
     if len(args) != 2 or args[1] not in HANDOFF_MODELS:
@@ -1523,7 +1524,18 @@ def cmd_handoff(p, args):
     if kind == "retro" and not friction(milestone_events(p, m["id"])):
         return print("SKIP no friction")
     path = os.path.join(p.dir, "handoffs", f"{safe_id(m['id'])}-{kind}.md")
-    print(write_prompt(path, "\n".join(handoff_text(p, m, kind)), HANDOFF_MODELS[kind]))
+    print(write_prompt(path, "\n".join(handoff_text(p, m, kind) + standing_context(p)), HANDOFF_MODELS[kind]))
+
+
+def standing_context(p):
+    """podium/handoff-context.md, the run-wide rules every handoff carries, under `## Orchestrator context`; [] without it."""
+    path = os.path.join(p.dir, "handoff-context.md")
+    if not os.path.isfile(path):
+        return []
+    with open(path) as f:
+        text = f.read().strip()
+    text = re.sub(r"\A##\s+Orchestrator context\s*\n", "", text).strip()
+    return ["", "## Orchestrator context", text] if text else []
 
 
 def cmd_land(p, args):
