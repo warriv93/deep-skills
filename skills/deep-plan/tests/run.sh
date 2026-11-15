@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: tests/run.sh
-# Runs scripts/gates.sh, scripts/review-pack.sh and scripts/new-clones.sh against throwaway fixture repos and asserts on its output lines.
+# Runs scripts/gates.sh, scripts/review-pack.sh, scripts/new-clones.sh and scripts/land.sh against throwaway fixture repos and asserts on its output lines.
 # Prints PASS/FAIL per assertion and exits non-zero on any FAIL.
 set -uo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
@@ -124,6 +124,59 @@ stub 2; out="$(JSCPD="$T/jscpd" "$C" "$c" main 2>&1)"; rc=$?
 [ $rc = 2 ] && has "clones: another jscpd failure keeps its output" '^error: bad config' "$out" || fail "clones: another jscpd failure keeps its exit code (got $rc)"
 out="$(JSCPD="$T/jscpd" "$C" "$c" nope 2>&1)"; rc=$?
 [ $rc = 2 ] && has "clones: an unknown base ref exits 2" 'unknown base ref nope' "$out" || fail "clones: an unknown base ref exits 2 (got $rc)"
+
+# ---------- land.sh, with the gates pinned in each fixture's .deep-plan/contract.cmds
+L="$here/scripts/land.sh"
+# landfix <dir> <gate command>: main with a.txt, branch feat holding a story merge and its own commit; main moved on
+landfix() { mkrepo "$1"; put "$1/.deep-plan/contract.cmds" "unit: $2"; put "$1/a.txt" one; commit "$1" a
+  git -C "$1" switch -q -c feat; git -C "$1" switch -q -c story; put "$1/b.txt" b; commit "$1" b
+  git -C "$1" switch -q feat; git -C "$1" merge -q --no-ff -m "merge story" story; put "$1/c.txt" c; commit "$1" c
+  git -C "$1" switch -q main; put "$1/d.txt" d; commit "$1" d; }
+trees() { git -C "$1" worktree list | wc -l | tr -d ' '; }
+
+r="$T/land-ok"; landfix "$r" true; mkdir "$r/node_modules"; git -C "$r" switch -q --detach
+out="$("$L" "$r" feat 2>&1)"; rc=$?
+has   "land: lands the branch on main" "^LANDED main $(git -C "$r" rev-parse --short main)$" "$out"
+has   "land: runs the gates" '^PASS unit' "$out"
+has   "land: next is the push preview" '^NEXT .*push-preview\.sh .* origin main' "$out"
+[ $rc = 0 ] && pass "land: exit 0 when landed" || fail "land: exit 0 when landed (got $rc)"
+[ "$(git -C "$r" rev-list --merges main | wc -l | tr -d ' ')" = 0 ] && pass "land: merge commits flattened" || fail "land: merge commits flattened"
+[ "$(git -C "$r" log --format=%s main | tr '\n' ' ')" = "c b d a base " ] && pass "land: the branch's commits sit on main" || fail "land: the branch's commits sit on main"
+[ "$(git -C "$r" rev-parse feat)" = "$(git -C "$r" rev-parse main)" ] && pass "land: the branch moves to the landed commits" || fail "land: the branch moves to the landed commits"
+[ "$(trees "$r")" = 1 ] && pass "land: the temporary worktree is gone" || fail "land: the temporary worktree is gone"
+out="$("$L" "$r" feat 2>&1)"
+has   "land: a landed branch has nothing to land" '^NOTHING feat is already in main' "$out"
+
+r="$T/land-ff"; landfix "$r" true; put "$r/scratch.txt" x
+out="$("$L" "$r" feat 2>&1)"
+has   "land: base checked out fast-forwards there" '^LANDED main ' "$out"
+[ "$(git -C "$r" rev-parse HEAD)" = "$(git -C "$r" rev-parse main)" ] && [ -f "$r/c.txt" ] && pass "land: the checkout has the landed tree" || fail "land: the checkout has the landed tree"
+[ -f "$r/scratch.txt" ] && pass "land: untracked files stay" || fail "land: untracked files stay"
+
+r="$T/land-dirty"; landfix "$r" true; put "$r/a.txt" edited; before="$(git -C "$r" rev-parse main)"
+out="$("$L" "$r" feat 2>&1)"; rc=$?
+has   "land: refuses a dirty checkout of the base" "^DIRTY .*/land-dirty: main is checked out there" "$out"
+[ $rc = 1 ] && [ "$(git -C "$r" rev-parse main)" = "$before" ] && pass "land: dirty leaves main where it was" || fail "land: dirty leaves main where it was (rc $rc)"
+
+r="$T/land-red"; landfix "$r" "echo broken && false"; git -C "$r" switch -q --detach; before="$(git -C "$r" rev-parse main)"
+out="$("$L" "$r" feat 2>&1)"; rc=$?
+has   "land: failing gates name the gate and keep the worktree" '^GATES-FAILED unit KEPT /' "$out"
+has   "land: failing gates show their tail" '^  broken$' "$out"
+kept="$(sed -n 's/^GATES-FAILED .* KEPT //p' <<<"$out")"
+[ $rc = 1 ] && [ -d "$kept" ] && [ "$(git -C "$r" rev-parse main)" = "$before" ] && pass "land: red gates move nothing" || fail "land: red gates move nothing (rc $rc)"
+
+r="$T/land-conflict"; landfix "$r" true; git -C "$r" switch -q feat; put "$r/a.txt" theirs; commit "$r" fa
+git -C "$r" switch -q main; put "$r/a.txt" ours; commit "$r" ma; git -C "$r" switch -q --detach; before="$(git -C "$r" rev-parse main)"
+out="$("$L" "$r" feat 2>&1)"; rc=$?
+has   "land: a conflict names its files" '^CONFLICT a\.txt$' "$out"
+[ $rc = 1 ] && [ "$(trees "$r")" = 1 ] && [ "$(git -C "$r" rev-parse main)" = "$before" ] && pass "land: a conflict aborts and cleans up" || fail "land: a conflict aborts and cleans up (rc $rc)"
+
+r="$T/land-busy"; landfix "$r" true; git -C "$r" switch -q --detach; git -C "$r" worktree add -q "$T/land-busy-feat" feat; old="$(git -C "$r" rev-parse feat)"
+out="$("$L" "$r" feat 2>&1)"
+has   "land: lands a branch another worktree has checked out" '^LANDED main ' "$out"
+[ "$(git -C "$r" rev-parse feat)" = "$old" ] && pass "land: leaves a checked-out branch where it is" || fail "land: leaves a checked-out branch where it is"
+out="$("$L" "$r" nope 2>&1)"; rc=$?
+[ $rc = 2 ] && has "land: an unknown branch exits 2" 'no branch nope' "$out" || fail "land: an unknown branch exits 2 (got $rc)"
 
 echo
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }
