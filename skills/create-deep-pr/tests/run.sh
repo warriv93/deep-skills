@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Usage: tests/run.sh
-# Runs scripts/push-preview.sh against a throwaway repo with a local bare remote and asserts on
-# its output lines. Prints PASS/FAIL per assertion and exits non-zero on any FAIL.
+# Runs scripts/push-preview.sh against a throwaway repo with a local bare remote and
+# scripts/render-svg.mjs on a small SVG, and asserts on their output lines. Prints PASS/FAIL per assertion and exits non-zero on any FAIL.
 set -uo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 P="$here/scripts/push-preview.sh"
@@ -57,6 +57,17 @@ git reset -q --hard HEAD~1
 out="$("$P" "$w")"; rc=$?
 code  "preview: behind exits 2" 2 $rc
 has   "preview: behind is named" '^BLOCKED behind' "$out"
+
+# ---------- render-svg.mjs
+R="$here/scripts/render-svg.mjs"
+echo '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><text x="10" y="40">Story</text></svg>' > "$T/story.egn.svg"
+out="$(node "$R" "$T/story.egn.svg" "$T/out/domain-story-story.png")"; rc=$?
+code  "render: an svg renders" 0 $rc
+has   "render: the png is the svg at 2x" '^RENDERED .*/out/domain-story-story\.png 240x160$' "$out"
+echo '<p>no picture</p>' > "$T/none.svg"
+out="$(node "$R" "$T/none.svg" "$T/none.png")"; rc=$?
+code  "render: a file without an svg fails" 1 $rc
+has   "render: the failure names the file" '^RENDER_FAILED .*none\.svg no <svg> element' "$out"
 
 echo
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

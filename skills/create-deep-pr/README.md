@@ -9,6 +9,7 @@ Takes finished work in any GitHub repo to a draft pull request: branched, commit
 - Builds a CI recipe from the workflows that gate a PR (or the project's own scripts when there's no CI config), scoped to what the branch touched, and fixes failures until every job passes. A failure the branch didn't cause stops it and asks you.
 - Has one fresh-context agent review the whole diff for defects and design (logic the repo already has, bolted-on special cases, pass-through modules), and fixes its blockers and should-fixes before the push.
 - For UI changes, boots the app (an instance already running counts only if it serves this checkout and started after HEAD), screenshots each changed screen with Playwright, with before and after shots when the app starts fast, and posts them to a `pr-screenshots` orphan branch.
+- Renders the change's Egon.io domain stories (named by you, or an `/orchestrate-deep-plans` milestone's) to PNGs and posts them the same way, under a Domain stories section that names any story a later decision outdated.
 - Writes the body as an inverted pyramid shaped like 3-5 of the repo's recent merged PRs, with deep links into the diff for the lines that carry the change. Updates the PR instead when one is already open for the branch.
 - Ends with the PR link, the checks that ran and the files left out. It never requests a Copilot review.
 
@@ -43,7 +44,8 @@ Also needs:
 - `scripts/post-screenshots.sh <repo-dir> <png>...` commits the PNGs to `pr-screenshots` under the branch's name through a throwaway index, so the working tree, index and HEAD stay untouched, and prints one markdown image line per file, pinned to that commit.
 - `scripts/push-preview.sh [<repo>] [<remote>] [<branch>] [--paths <dirs>]` prints what a push would send: the target (new or existing), each commit with flags for an old author date, another author or files outside `--paths`, the file totals and suspicious files (`.env*`, keys, `node_modules`, `.DS_Store`, large files, secret-like lines). It exits 2 when the remote has commits the branch lacks.
 - `scripts/deep-links.sh <owner/repo> <pr-number> <path[:line[:L]]>...` prints a link into the PR's diff for each path and line.
+- `scripts/render-svg.mjs <svg> <png>` renders an SVG, such as an Egon.io `.egn.svg` domain story, to a PNG at 2x on white and prints `RENDERED <png> <w>x<h>` or `RENDER_FAILED <svg> <reason>`. It installs Playwright into `~/.cache/axe-playwright` on first use.
 
-`tests/run.sh` checks `push-preview.sh` against a throwaway repo with a local bare remote.
+`tests/run.sh` checks `push-preview.sh` against a throwaway repo with a local bare remote, and `render-svg.mjs` on a small SVG.
 
 Outside Claude Code (Antigravity, Gemini) the skill loads `claude-tool-map` first, which `install.sh` links when `~/.gemini/config/` exists.

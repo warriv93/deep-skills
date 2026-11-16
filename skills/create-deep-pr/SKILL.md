@@ -69,6 +69,8 @@ Done when no kept blocker is open, every kept should-fix is fixed or declined in
 
 Run this step when the branch changes what a user sees (templates, styles, components, pages or UI copy; tests and stories don't count) and the user hasn't opted out. Follow [`phase-screenshots.md`](phase-screenshots.md): get the app running, capture each changed screen with Playwright, and post the images. The step is done when every changed screen has a screenshot that shows the change, or the report says why one couldn't be taken. Screenshot trouble never holds up the PR.
 
+**Domain stories** (Egon.io `<Title>.egn.svg` files) get posted the same way, whether or not the UI changed. Take their folder from the arguments or the conversation, else from the run dir `.deep-plan/` of an `/orchestrate-deep-plans` run: in `podium/podium.json`, the milestone this PR is for (named in the conversation, else `active.milestone`), its or its epic's `domainStories.stories[].path`, relative to `.deep-plan/`. Otherwise there are none; skip without searching the disk. Render each with `node ~/.claude/skills/create-deep-pr/scripts/render-svg.mjs <svg> <scratchpad>/domain-story-<kebab title>.png`, since GitHub won't show the embedded SVG, and pass the PNGs to `post-screenshots.sh`. Before posting, compare each story with the final design (spec, decisions in the conversation). Done when every story is posted, and each one a later decision changed is named with what changed.
+
 ## 6. Push and open the PR
 
 Run `push-preview.sh <repo-root> origin <branch> [--paths <this task's directories>]` and show its output: the target, each commit, the file count and any suspicious file. Done when it exited 0 with no `SUSPICIOUS` line and no `FLAG` on a commit; otherwise stop and put the lines to the user (exit 2 means the remote has commits the branch lacks, so rebasing or merging is their call).
@@ -88,6 +90,7 @@ The Start here links need the PR's number, so a new PR gets its body in two pass
 
 - `## What`: the behaviour change in user terms, in 1-3 sentences, ending on `**Risk: low | medium | high**: <one-line reason>`. Put `## Why` first when the reason isn't obvious from the what.
 - `## Issue`: the issue or ticket link on its own line.
+- `## Domain stories`: the process the change serves, from step 5. Per story a bold title line and its image. Under the heading, one line per story a later decision outdated, naming what changed. When the sources are committed (`git ls-files` lists them) or otherwise on GitHub, link their folder, noting the `.egn.svg` files open in egon.io.
 - `## Start here`: 3-7 links to the lines that carry the change (the behaviour change itself, and each seam: an endpoint, a schema change, a flag, a function or component other code uses), ranked by how much a mistake there would hurt, each `[<file>:<line>](<link>): <what it does>`. Make the links with `~/.claude/skills/create-deep-pr/scripts/deep-links.sh <owner/repo> <number> <path:line>...`. Skip it for a diff a reviewer reads in one screen.
 - `## Screenshots`: the image lines from step 5, each under a caption saying what it shows and how to reach it (URL, user, flag or data).
 - `## Check by hand`: a `- [ ]` list of what only a person can settle, each naming its screen, role, endpoint or table: changed screens and the pages sharing their components, access for a role that should and one that shouldn't, both states of a flag, schema changes against production data and the rolling deploy, API changes against older clients.
@@ -105,5 +108,5 @@ End with the PR link on its own line so it's clickable. Follow it with 2-3 lines
 - the branch, and whether the PR is a draft or ready
 - the checks that ran
 - the agent review: findings fixed and declined, and the open nits
-- whether screenshots were posted, or why not
+- whether screenshots and domain stories were posted, or why not
 - files left out of the commit
