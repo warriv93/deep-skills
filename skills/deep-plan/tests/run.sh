@@ -40,6 +40,27 @@ has   "gates: pinned file replaces detection" '^PASS unit 5 tests' "$out"
 hasnt "gates: pinned file replaces detection (no lint)" '^(PASS|FAIL) lint' "$out"
 has   "gates: a failing pinned gate shows its output" '^  oops$' "$out"
 
+h="$T/l3/gates.jsonl"
+has   "history: one line per gate run" '^2$' "$(wc -l < "$h" | tr -d ' ')"
+has   "history: a passing run is ok" '"gate": "unit", "ok": true, "secs": [0-9]+, "sha": null' "$(cat "$h")"
+has   "history: a failing run is not ok" '"gate": "bad", "ok": false' "$(cat "$h")"
+has   "history: each run says when in UTC" '^\{"at": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"' "$(head -1 "$h")"
+git -C "$n" -c user.email=t@t -c user.name=t commit -q --allow-empty -m one
+"$G" "$n" --pinned "$T/p.cmds" --logs "$T/l3" --only unit >/dev/null 2>&1
+has   "history: a rerun appends instead of overwriting" '^3$' "$(wc -l < "$h" | tr -d ' ')"
+has   "history: a run on a commit carries its sha" "\"sha\": \"$(git -C "$n" rev-parse HEAD)\"}$" "$(tail -1 "$h")"
+printf 'say "hi" \\ there: true\n' > "$T/q.cmds"
+"$G" "$n" --pinned "$T/q.cmds" --logs "$T/l5" >/dev/null 2>&1
+python3 -c 'import json,sys; [json.loads(l) for l in open(sys.argv[1])]' "$T/l5/gates.jsonl" 2>/dev/null \
+  && pass "history: a gate name with quotes stays valid JSON" || fail "history: a gate name with quotes stays valid JSON"
+mkdir -p "$T/l6/gates.jsonl"
+out="$("$G" "$n" --pinned "$T/p.cmds" --logs "$T/l6" 2>&1)"; rc=$?
+[ $rc = 1 ] && pass "history: an unwritable history keeps the exit code" || fail "history: an unwritable history keeps the exit code (got $rc)"
+has   "history: an unwritable history keeps the gate lines" '^PASS unit' "$out"
+hasnt "history: an unwritable history prints no error" 'gates\.jsonl' "$out"
+out="$(TMPDIR="$T/tmp" "$G" "$n" --pinned "$T/p.cmds" 2>&1)"
+[ -z "$(find "$T/tmp" -name gates.jsonl)" ] && pass "history: none without --logs" || fail "history: none without --logs"
+
 mkdir -p "$n/.deep-plan/archive/M1"; cp "$T/p.cmds" "$n/.deep-plan/archive/M1/contract.cmds"
 out="$("$G" "$n" --only typecheck --logs "$T/l4" 2>&1)"
 has   "gates: detection warns when the contract was archived" '^WARN .*\.deep-plan/archive/M1/contract\.cmds' "$out"

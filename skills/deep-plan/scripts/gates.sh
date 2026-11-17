@@ -9,6 +9,8 @@
 #   FAIL <name> <seconds>s (log: <file>)
 #   WARN <text>
 #   --- <name>: last 40 lines            then the lines, indented, per failing gate
+# With --logs, each gate run also appends a line to <logs>/gates.jsonl, which is never overwritten:
+#   {"at": "<UTC ISO-8601>", "gate": "<name>", "ok": true|false, "secs": <n>, "sha": "<HEAD of <dir>>"|null}
 # Gates come from the pinned file when it exists: --pinned <file>, else <dir>/.deep-plan/contract.cmds.
 # One gate per line, `<name>: <command>`; blank lines and #-comments are skipped; each command runs
 # in <dir> through `bash -c`, so `cd sub && cmd` works. Otherwise they're detected from the repo:
@@ -22,12 +24,12 @@ set -uo pipefail
 
 [ $# -ge 1 ] || { echo "Usage: gates.sh <dir> [--only name,...] [--pinned <file>] [--logs <dir>]" >&2; exit 2; }
 dir="$(cd "$1" && pwd)"; shift
-only=""; pinned="$dir/.deep-plan/contract.cmds"; logs=""
+only=""; pinned="$dir/.deep-plan/contract.cmds"; logs=""; history=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --only) only="${2:-}"; shift 2;;
     --pinned) pinned="${2:-}"; shift 2;;
-    --logs) logs="${2:-}"; shift 2;;
+    --logs) logs="${2:-}"; history="$logs/gates.jsonl"; shift 2;;
     *) echo "unknown argument $1" >&2; exit 2;;
   esac
 done
@@ -130,6 +132,16 @@ count_tests() {
   return 0
 }
 
+sha="$(git -C "$dir" rev-parse --verify -q HEAD 2>/dev/null)" && sha="\"$sha\"" || sha=null
+# record <name> <ok> <seconds>: appends the run to the history; a failed write is ignored.
+record() {
+  [ -n "$history" ] || return 0
+  local n="${1//\\/\\\\}"; n="${n//\"/\\\"}"
+  { printf '{"at": "%s", "gate": "%s", "ok": %s, "secs": %s, "sha": %s}\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$n" "$2" "$3" "$sha" >>"$history"; } 2>/dev/null
+  return 0
+}
+
 echo "LOGS $logs"
 failed=0; fails=()
 for i in "${!names[@]}"; do
@@ -137,11 +149,13 @@ for i in "${!names[@]}"; do
   [ -n "$only" ] && ! grep -qx -- "$name" < <(tr ',' '\n' <<<"$only") && continue
   log="$logs/$name.log"; start=$SECONDS
   if (cd "$dir" && bash -c "${cmds[$i]}") >"$log" 2>&1 </dev/null; then
+    secs=$((SECONDS - start)); record "$name" true "$secs"
     n="$(count_tests "$log")"
-    echo "PASS $name${n:+ $n tests} $((SECONDS - start))s"
+    echo "PASS $name${n:+ $n tests} ${secs}s"
   else
+    secs=$((SECONDS - start)); record "$name" false "$secs"
     failed=1; fails+=("$name")
-    echo "FAIL $name $((SECONDS - start))s (log: $log)"
+    echo "FAIL $name ${secs}s (log: $log)"
   fi
 done
 for name in ${fails[@]+"${fails[@]}"}; do
