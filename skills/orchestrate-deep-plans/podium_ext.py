@@ -1190,10 +1190,15 @@ def launch(p, m, s, retry=None):
 
 def launch_wave(p, stories, retry=None):
     """Dispatch each (milestone, story) as `launch` does, running quality.install in all their new worktrees at once:
-    a line per story, in order."""
+    a line per story, in order. Each story shows `working` while its install runs, and goes back on INSTALL-FAILED."""
     placed = [place(p, m, s, retry) for m, s in {(m["id"], s["id"]): (m, s) for m, s in stories}.values()]
     jobs = [(x, c, name, tree) for x in placed if not isinstance(x, str)
             for c in install_step(x["milestone"]) for name, _, tree, _ in x["trees"]]
+    before = {id(x["story"]): {k: x["story"].get(k) for k in ("status", "startedAt")} for x, *_ in jobs}
+    if jobs:
+        for x, *_ in jobs:
+            x["story"].update(status="working", startedAt=NOW())
+        p.save()
     with ThreadPoolExecutor(max_workers=INSTALLS) as pool:
         failed = [why for why in pool.map(lambda job: install(p, *job), jobs) if why]
     lines = []
@@ -1204,6 +1209,10 @@ def launch_wave(p, stories, retry=None):
         why = next((f"{name}: {last}" for sid, name, last in failed if sid == x["story"]["id"]), None)
         if why:
             x["undo"]()
+            x["story"].update(before[id(x["story"])])
+            if x["story"]["startedAt"] is None:
+                del x["story"]["startedAt"]
+            p.save()
             lines.append(f"INSTALL-FAILED {safe_id(x['story']['id'])} {why}")
         else:
             lines.append(dispatch(p, *p.story(x["story"]["id"], x["milestone"]["id"]), x, retry))

@@ -1271,6 +1271,15 @@ class Launch(Run):
         with open(os.path.join(f"{self.main}-S1", "installed.txt")) as f:
             self.assertEqual(f.read(), "deps\n")
 
+    def test_a_story_shows_working_while_its_install_runs(self):
+        state = os.path.join(self.run_dir, "podium", "podium.json")
+        read = f"import json; print(json.load(open('{state}'))['epics'][0]['milestones'][0]['stories'][0]['status'])"
+        self.data["epics"][0]["milestones"][0]["quality"]["install"] = {"cmd": f"python3 -c \"{read}\" > seen.txt"}
+        self.write()
+        self.assertTrue(self.podium("launch", "S1").startswith("PROMPT "))
+        with open(os.path.join(f"{self.main}-S1", "seen.txt")) as f:
+            self.assertEqual(f.read(), "working\n")
+
     def test_a_failed_install_undoes_the_worktree_and_records_nothing(self):
         self.data["epics"][0]["milestones"][0]["quality"]["install"] = {"cmd": "echo no lockfile; exit 1"}
         self.write()
@@ -1278,6 +1287,7 @@ class Launch(Run):
         self.assertFalse(os.path.exists(f"{self.main}-S1"))
         s = self.milestone()["stories"][0]
         self.assertEqual((s["status"], s["attempts"]), ("todo", 0))
+        self.assertNotIn("startedAt", s)
         self.assertEqual(self.events(), [])
         self.assertEqual(git(self.main, "branch", "--list", "story/S1"), "")
 

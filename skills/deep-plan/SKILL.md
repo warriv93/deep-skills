@@ -34,7 +34,9 @@ Start every turn by reading the ledger and resuming from it; create it if missin
 
 `.deep-plan/podium/podium.json` exists → `/orchestrate-deep-plans` owns this run:
 
-- Change `podium.json` and `events.jsonl` only through the `podium` command (orchestrate-deep-plans' SKILL.md, `podium`), with `--dir <main checkout>/.deep-plan` when this run works in another worktree. At every checkpoint: `set milestone:<id> phase=<phase> artifacts+=<{name, path, phase}> --event phase phase=<phase>`, `<id>` this run's milestone (another one can be the active one), one `artifacts+=` per new planning file.
+- Change `podium.json` and `events.jsonl` only through the `podium` command (orchestrate-deep-plans' SKILL.md, `podium`), with `--dir <main checkout>/.deep-plan` when this run works in another worktree. `<id>` below is this run's milestone (another one can be the active one).
+- Entering a phase, as its first action, before any recon, reading or spawning: `set milestone:<id> phase=<phase> --event phase phase=<phase>`, `<phase>` by phase: R `recon`, 0 `spec`, 0.5 `mock`, 1 `architecture`, 2 `stories`, 3's quality gate `gate`, 4 `verify`, 5 and 6 `land`. A phase the milestone already shows needs no second write (`/orchestrate-deep-plans` writes `recon` and `gate` as it hands over).
+- At every checkpoint: `set milestone:<id> artifacts+=<{name, path, phase}>`, one `artifacts+=` per new planning file.
 - Before every question to the user and every sign-off gate, run `podium human`. Unavailable or mobile → orchestrate-deep-plans' rule for that mode (its SKILL.md, The human) replaces or trims asking.
 - While a sign-off gate waits on the user, `set . needsYou=<{reason}>`; `set . needsYou=null` on sign-off.
 - Where a phase would ask the user to `/clear` and re-invoke `/deep-plan`, stop at that checkpoint and return to `/orchestrate-deep-plans` instead: it carries on in a fresh subagent.

@@ -46,6 +46,6 @@ Tools: `git` and `python3` (the mock server). Subagents are routed by cost: Haik
 ## Working with the other deep skills
 
 - `/deep-app-plan` hands over milestones; recon then reads `.deep-plan/project.md` and treats its Platform and contract blocks as settled.
-- When `.deep-plan/podium/podium.json` exists, `/orchestrate-deep-plans` owns the run: `/deep-plan` reports each checkpoint to the Podium, follows its availability rules before asking you, and returns to the orchestrator after Phase 2 instead of building the slices itself.
+- When `.deep-plan/podium/podium.json` exists, `/orchestrate-deep-plans` owns the run: `/deep-plan` reports each phase to the Podium as it starts and each checkpoint's files, follows its availability rules before asking you, and returns to the orchestrator after Phase 2 instead of building the slices itself.
 
 Outside Claude Code (Antigravity, Gemini) the skill loads `claude-tool-map` first, which `install.sh` links when `~/.gemini/config/` exists.
