@@ -29,6 +29,8 @@ GENERATED = {"planned", "commit", "landed"}
 DISPATCHERS = ("paseo", "agent")
 CLOSED = ("done", "dropped", "moved")
 INSTALLS = 8
+LOCKFILES = ("package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb", "poetry.lock", "uv.lock",
+             "Pipfile.lock", "Gemfile.lock", "composer.lock")
 
 
 def configured_findings_remote():
@@ -1242,6 +1244,12 @@ def place(p, m, s, retry):
         if not approved(p, c["cmd"]):
             return f"FAILED {sid} install not approved: {contract_line(p, c)} (podium approve)"
     trees, made = story_trees(p, m, s), []
+    if "install" not in (m.get("quality") or {}):
+        for name, src, _, start in trees:
+            locks = sorted(set(LOCKFILES) & set(git_in(src, "ls-tree", "--name-only", start)[1].splitlines())) if src and start else []
+            if locks:
+                return (f"FAILED {sid} {name} has {locks[0]} but milestone {m['id']} has no quality.install "
+                        f"(phase-2-breakdown.md, Contract; null when it needs none)")
 
     def undo():
         for src, tree in made:

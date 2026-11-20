@@ -1280,6 +1280,16 @@ class Launch(Run):
         with open(os.path.join(f"{self.main}-S1", "seen.txt")) as f:
             self.assertEqual(f.read(), "working\n")
 
+    def test_refuses_a_repo_with_a_lockfile_when_the_milestone_has_no_install(self):
+        commit(self.feature, "package-lock.json", "add lockfile")
+        self.assertEqual(self.podium("launch", "S1").strip(),
+                         "FAILED S1 core has package-lock.json but milestone M1 has no quality.install "
+                         "(phase-2-breakdown.md, Contract; null when it needs none)")
+        self.assertFalse(os.path.exists(f"{self.main}-S1"))
+        self.data["epics"][0]["milestones"][0]["quality"]["install"] = None
+        self.write()
+        self.assertTrue(self.podium("launch", "S1").startswith("PROMPT "))
+
     def test_a_failed_install_undoes_the_worktree_and_records_nothing(self):
         self.data["epics"][0]["milestones"][0]["quality"]["install"] = {"cmd": "echo no lockfile; exit 1"}
         self.write()
