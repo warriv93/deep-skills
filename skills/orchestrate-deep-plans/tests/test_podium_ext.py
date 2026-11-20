@@ -764,7 +764,7 @@ class Handoff(Run):
     def test_gate_runs_deep_plan_from_its_quality_gate_on_the_milestones_branch(self):
         text = self.handoff("gate")
         for want in ('section "Quality gate"', "Phases 4, 5 and 6", f"Branch: feat on master, worktree {self.feature}",
-                     "once landed"):
+                     "once landed", "`.deep-plan/findings-phase-3.md`", "are deliverables"):
             self.assertIn(want, text)
 
     def test_appends_the_runs_standing_context_to_every_handoff(self):

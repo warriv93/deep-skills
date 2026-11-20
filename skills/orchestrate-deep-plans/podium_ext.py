@@ -1554,7 +1554,10 @@ def handoff_text(p, m, kind):
                "question if any.")
     return [f"Run `/deep-plan` for {named} from its Phase 3 quality gate (`~/.claude/skills/deep-plan/phase-3-exec.md`, "
             f"section \"Quality gate\") on through its Phases 4, 5 and 6, from its ledger, {book}. Start its review "
-            "subagents in the foreground.", orchestrated + " Keep the milestone's `phase` and `needsYou` current.", ""] + (
+            "subagents in the foreground. The findings files deep-qa writes (`.deep-plan/findings-phase-3.md`, "
+            "`findings-phase-4.md`, `findings-phase-4-review.md`) are deliverables the landing reads: write each one, "
+            "never leave its rows only in the ledger or your reply.",
+            orchestrated + " Keep the milestone's `phase` and `needsYou` current.", ""] + (
         [f"Branch: {m['branch']} on {base}, worktree {tree or p.repo}", ""] if m.get("branch") else []) + handoff_rules(
         p, "Return at each sign-off gate, question or context reset, and once landed, in at most 8 lines: the gate's "
            "counts and findings file, each criterion's pass, the PR, the landed sha.")
