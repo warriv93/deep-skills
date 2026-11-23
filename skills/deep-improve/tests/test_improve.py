@@ -34,7 +34,7 @@ class Tmp(unittest.TestCase):
     def select(self, lines, cap=5, today="2026-10-26"):
         return improve.select(improve.parse_findings(lines), cap, self.home, today,
                               resolve=lambda t: improve.resolve_target(t, podium=lambda: None) if t.startswith("repo:")
-                              else (self.repo, None), branch_of=lambda r: "main")
+                              else ([self.repo], None), branch_of=lambda r: "main")
 
     def run_main(self, *argv, stdin=""):
         out = io.StringIO()
@@ -76,14 +76,22 @@ class SelectingFindings(Tmp):
         subprocess.run(["git", "-C", self.repo, "branch", "improve/a"], check=True)
         self.assertIn("already exists", self.select([line("a")])["skipped"][0]["why"])
 
+    def test_a_target_in_several_repos_drafts_in_each_and_counts_once_against_the_cap(self):
+        other = os.path.join(self.tmp, "other-repo")
+        subprocess.run(["git", "init", "-q", other], check=True)
+        data = improve.select(improve.parse_findings([line("a", runs=3, target="podium"), line("b")]), 1, self.home,
+                              "2026-10-26", resolve=lambda t: ([self.repo, other], None), branch_of=lambda r: "main")
+        self.assertEqual([(e["n"], e["key"], e["repo"]) for e in data["entries"]], [(1, "a", self.repo), (2, "a", other)])
+        self.assertEqual(data["skipped"], [{"key": "b", "why": "over the cap of 1"}])
+
 
 class ResolvingTargets(Tmp):
     def test_a_skill_resolves_through_its_symlink_to_the_git_toplevel(self):
         skills = os.path.join(self.tmp, "claude-skills")
         os.makedirs(skills)
         os.symlink(os.path.join(self.repo, "skills", "deep-plan"), os.path.join(skills, "deep-plan"))
-        self.assertEqual(improve.resolve_target("deep-plan", skills_dir=skills), (self.repo, None))
-        self.assertIsNone(improve.resolve_target("missing", skills_dir=skills)[0])
+        self.assertEqual(improve.resolve_target("deep-plan", skills_dir=skills), ([self.repo], None))
+        self.assertEqual(improve.resolve_target("missing", skills_dir=skills)[0], [])
 
     def test_podium_resolves_from_an_editable_install_before_the_fallback(self):
         site = os.path.join(self.tmp, "site")
@@ -93,6 +101,15 @@ class ResolvingTargets(Tmp):
         show = "Name: podium-dashboard\nLocation: %s\nFiles:\n  podium_dashboard-0.1.dist-info/direct_url.json\n" % site
         self.assertEqual(improve.podium_checkout(show, fallback=os.path.join(self.tmp, "nowhere")), self.repo)
         self.assertEqual(improve.podium_checkout("", fallback=self.repo), self.repo)
+
+    def test_podium_resolves_to_the_tool_and_each_installed_copy_of_its_extension(self):
+        skills = os.path.join(self.tmp, "claude-skills")
+        os.makedirs(skills)
+        os.symlink(os.path.join(self.repo, "skills", "deep-plan"), os.path.join(skills, "orchestrate-deep-plans"))
+        tool = os.path.join(self.tmp, "tool-repo")
+        subprocess.run(["git", "init", "-q", tool], check=True)
+        self.assertEqual(improve.resolve_target("podium", skills_dir=skills, podium=lambda: tool), ([tool, self.repo], None))
+        self.assertEqual(improve.resolve_target("podium", skills_dir=skills, podium=lambda: None), ([self.repo], None))
 
 
 class RemeasuringTokenFixes(Tmp):
@@ -110,7 +127,7 @@ class RemeasuringTokenFixes(Tmp):
 
 class TheCommandLine(Tmp):
     def test_select_baseline_decide_check_compare_and_revert_round_trip(self):
-        with unittest.mock.patch.object(improve, "resolve_target", lambda t: (self.repo, None)), \
+        with unittest.mock.patch.object(improve, "resolve_target", lambda t: ([self.repo], None)), \
                 unittest.mock.patch.object(improve, "default_branch", lambda r: "main"):
             out = self.run_main("select", "--date", "2026-10-19", stdin=line("costly", kind="tokens", saving="5k"))
         self.assertTrue(out[0].startswith("PICK 1 costly ×2 tokens deep-plan %s improve/costly from main" % self.repo))

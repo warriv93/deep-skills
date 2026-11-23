@@ -26,6 +26,7 @@ from datetime import date, datetime, timezone
 
 DEFAULT_CAP = 5
 PODIUM_FALLBACK = "~/gitrepos/warriv93/podium-dashboard"
+PODIUM_EXTENSIONS = ("orchestrate-deep-plans", "orchestrate-plan")
 
 FINDING = re.compile(
     r"^FINDING (?P<key>\S+) ×(?P<runs>\d+) (?P<status>open|resolved \S+|wontfix) (?P<kind>\S+) (?P<target>\S+) "
@@ -85,17 +86,23 @@ def podium_checkout(pip_show=None, fallback=PODIUM_FALLBACK):
 
 
 def resolve_target(target, skills_dir="~/.claude/skills", podium=podium_checkout):
-    """(repo toplevel, None) or (None, why it is skipped)."""
+    """([repo toplevels], None) or ([], why it is skipped). `podium` names the tool and both copies of its
+    orchestration extension, so a fix lands wherever the code lives."""
     if target.startswith("repo:"):
-        return None, "project repo %s: fixes there follow that repo's own standards" % target[len("repo:"):]
+        return [], "project repo %s: fixes there follow that repo's own standards" % target[len("repo:"):]
     if target == "podium":
-        repo = podium()
-        return (repo, None) if repo else (None, "no podium-dashboard checkout found")
-    link = os.path.join(os.path.expanduser(skills_dir), target)
-    repo = toplevel(os.path.realpath(link)) if os.path.exists(link) else None
+        repos = [podium()] + [skill_repo(s, skills_dir) for s in PODIUM_EXTENSIONS]
+        repos = list(dict.fromkeys(r for r in repos if r))
+        return (repos, None) if repos else ([], "no podium-dashboard checkout or %s skill found" % " or ".join(PODIUM_EXTENSIONS))
+    repo = skill_repo(target, skills_dir)
     if repo:
-        return repo, None
-    return None, "skill %s is not installed in %s or not in a git checkout" % (target, skills_dir)
+        return [repo], None
+    return [], "skill %s is not installed in %s or not in a git checkout" % (target, skills_dir)
+
+
+def skill_repo(name, skills_dir):
+    link = os.path.join(os.path.expanduser(skills_dir), name)
+    return toplevel(os.path.realpath(link)) if os.path.exists(link) else None
 
 
 def default_branch(repo):
@@ -147,28 +154,32 @@ def awaiting(home):
 def select(findings, cap, home, today, resolve=None, branch_of=None):
     resolve, branch_of = resolve or resolve_target, branch_of or default_branch
     pending = awaiting(home)
-    picks, skips = [], []
+    picks, skips, drafted = [], [], 0
     for f in sorted(filter(eligible, findings), key=rank):
         if f["key"] in pending:
             skips.append((f["key"], "drafted %s, awaiting approve or reject" % pending[f["key"]]))
             continue
-        repo, why = resolve(f["target"])
+        repos, why = resolve(f["target"])
         if why:
             skips.append((f["key"], why))
             continue
         branch = "improve/" + f["key"]
-        if git(repo, "rev-parse", "--verify", "-q", "refs/heads/" + branch):
-            skips.append((f["key"], "branch %s already exists in %s" % (branch, repo)))
-            continue
-        default = branch_of(repo)
-        if not default:
-            skips.append((f["key"], "no default branch on origin of %s" % repo))
-            continue
-        if len(picks) == cap:
+        if drafted == cap:
             skips.append((f["key"], "over the cap of %d" % cap))
             continue
-        picks.append(dict(f, n=len(picks) + 1, repo=repo, default=default, branch=branch,
-                          worktree=os.path.join(home, "improve", "worktrees", "%s-%s" % (os.path.basename(repo), f["key"]))))
+        picked = 0
+        for repo in repos:
+            if git(repo, "rev-parse", "--verify", "-q", "refs/heads/" + branch):
+                skips.append((f["key"], "branch %s already exists in %s" % (branch, repo)))
+                continue
+            default = branch_of(repo)
+            if not default:
+                skips.append((f["key"], "no default branch on origin of %s" % repo))
+                continue
+            picked += 1
+            picks.append(dict(f, n=len(picks) + 1, repo=repo, default=default, branch=branch,
+                              worktree=os.path.join(home, "improve", "worktrees", "%s-%s" % (os.path.basename(repo), f["key"]))))
+        drafted += bool(picked)
     return {"date": today, "entries": picks, "skipped": [{"key": k, "why": w} for k, w in skips]}
 
 
