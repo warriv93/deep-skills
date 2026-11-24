@@ -1153,6 +1153,43 @@ class Ownership(Run):
         self.assertIn("LANDED M1", self.podium("turn", "--force"))
         self.assertEqual(self.milestone()["status"], "done")
 
+    def finish(self):
+        for story in self.data["epics"][0]["milestones"][0]["stories"]:
+            story["status"] = "done"
+        self.write()
+
+    def test_turn_records_another_persons_finished_milestone(self):
+        self.land_on_origin()
+        self.data["epics"][0]["milestones"][0]["needsYou"] = {"reason": "mark the PR ready"}
+        self.finish()
+        self.assertIn("LANDED M1", self.podium("turn"))
+        self.assertEqual(self.milestone()["status"], "done")
+        self.assertNotIn("needsYou", self.milestone())
+
+    def ticked(self):
+        self.fake("gh", """echo '{"state": "MERGED", "isDraft": false, "url": "u", "mergeCommit": {"oid": "abcdef1234"}}'""")
+        p = Podium(self.run_dir)
+        module, why = extension.load(p)
+        self.assertIsNone(why)
+        lines = module.on_tick(p)
+        p.save()
+        return lines
+
+    def test_a_tick_records_a_finished_milestone_and_queues_its_asana_subtask(self):
+        self.land_on_origin()
+        self.data["epics"][0]["milestones"][0]["asana"] = {"gid": "42"}
+        self.finish()
+        self.assertIn("LANDED M1", " ".join(self.ticked()))
+        self.assertEqual(self.milestone()["status"], "done")
+        with open(os.path.join(self.run_dir, "podium", "requests.jsonl")) as f:
+            queued = [json.loads(l) for l in f]
+        self.assertEqual([(r["action"], r["story"], r["note"]) for r in queued], [("asana-complete", "M1", "42")])
+
+    def test_a_tick_leaves_a_milestone_with_a_story_still_to_do(self):
+        self.land_on_origin()
+        self.assertEqual(self.ticked(), [])
+        self.assertEqual(self.milestone()["status"], "working")
+
     def test_a_landing_clears_only_this_persons_active_milestone(self):
         self.land_on_origin()
         self.data["epics"][0]["milestones"][0]["owner"] = "alice"

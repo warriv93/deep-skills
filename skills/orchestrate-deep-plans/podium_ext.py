@@ -1919,17 +1919,30 @@ def refusal(p, mid, force):
     return None
 
 
-def record_landings(p, gh, force=False):
+def finished(m):
+    """Whether every story but the dropped ones is done and the milestone's PR merged."""
+    return ((m.get("pr") or {}).get("state") == "merged"
+            and all(s.get("status") in ("done", "dropped") for s in m.get("stories", [])))
+
+
+def queue_request(p, line):
+    with p.locked(), open(os.path.join(p.dir, "requests.jsonl"), "a") as f:
+        f.write(json.dumps({**line, "at": NOW()}) + "\n")
+
+
+def record_landings(p, gh, force=False, finished_only=False):
     """Milestones that landed on their base since podium.json last saw them, recorded `done`: a line each. A landing of
-    a milestone this person may not change is only reported."""
+    a milestone this person may not change is only reported, unless the milestone is finished, which anyone records.
+    With `finished_only`, as the Podium's tick runs it, only finished milestones are looked at, and an Asana subtask to
+    complete is queued for the next turn."""
     lines = []
     for m in p.milestones():
-        if m.get("status") in CLOSED or not m.get("branch"):
+        if m.get("status") in CLOSED or not m.get("branch") or (finished_only and not finished(m)):
             continue
         got = landing(p, m, milestone_repo(p, m), gh.get(m["id"]))
         if not got:
             continue
-        why = refusal(p, m["id"], force)
+        why = None if finished(m) else refusal(p, m["id"], force)
         if why:
             lines.append(f"SKIP-LANDED {m['id']}: {why}")
             continue
@@ -1947,14 +1960,47 @@ def record_landings(p, gh, force=False):
         p.event("landed", m["id"], at=UTC(at) if at else None, sha=sha, subject=subject)
         m.update(status="done", phase="land", landedSha=sha,
                  shippedAt=datetime.fromtimestamp(at).strftime("%Y-%m-%d") if at else datetime.now().strftime("%Y-%m-%d"))
+        m.pop("needsYou", None)
         if p.active().get("milestone") == m["id"]:
             p.own()["active"] = None
         lines.append(f"LANDED {m['id']} {sha[:7]} {m['shippedAt']}; commits for {len(filled)} stories from trailers")
         a = m.get("asana") or {}
         if a.get("gid") and not a.get("completed"):
-            lines.append(f"ACT asana-complete {m['id']} {a['gid']}" if re.fullmatch(r"[0-9]+", str(a["gid"]))
-                         else f"refused asana gid {a['gid']!r}: not all digits")
+            if not re.fullmatch(r"[0-9]+", str(a["gid"])):
+                lines.append(f"refused asana gid {a['gid']!r}: not all digits")
+            elif finished_only:
+                queue_request(p, {"action": "asana-complete", "story": m["id"], "note": str(a["gid"])})
+            else:
+                lines.append(f"ACT asana-complete {m['id']} {a['gid']}")
     return lines
+
+
+def refresh_open_prs(p):
+    """Re-read the PR of every milestone not yet closed: (a line per change or error, {milestone: gh's answer for each
+    merged PR})."""
+    out, gh = [], {}
+    for m in p.milestones():
+        pr = m.get("pr")
+        if m.get("status") in CLOSED or not pr or not pr.get("number"):
+            continue
+        if pr.get("state") == "merged":  # merged before this turn: gh only says how
+            gh[m["id"]] = gh_pr(p, pr["number"])[0] or {}
+            continue
+        state, old, got, why = refresh_pr(p, m, pr)
+        if why:
+            out.append(f"PR-ERROR {m['id']} #{pr['number']}: {why}")
+        elif state != old:
+            out.append(f"PR {m['id']} #{pr['number']} {state} (was {old})")
+        if state == "merged":
+            gh[m["id"]] = got
+    return out, gh
+
+
+def on_tick(p):
+    """The Podium server's call every few minutes: re-read open milestones' PRs and record each finished milestone
+    that landed."""
+    out, gh = refresh_open_prs(p)
+    return out + record_landings(p, gh, finished_only=True)
 
 
 def links_asana(p):
@@ -2075,7 +2121,7 @@ def cmd_turn(p, args):
       FETCH-FAILED <repo>: <why> | SYNC <n> repos up to date
       PR <milestone> #<n> <state> (was <old>) | PR-ERROR …
       LANDED <milestone> <sha> <date>; …            landed on its base since podium.json saw it: recorded done
-      SKIP-LANDED <milestone>: <why>                landed, but another person's (or unclaimed): left to them; --force records it
+      SKIP-LANDED <milestone>: <why>                landed unfinished, and another person's (or unclaimed): left to them; --force records it
       ACT asana-complete <milestone> <gid>          a landed milestone's subtask to complete
       refused asana gid <gid>: not all digits       the same, its gid not an Asana gid: nothing to complete
     then `status`; PODIUM up <url> watching|not watching, or PODIUM down; the Asana plugin's refresh lines when
@@ -2095,21 +2141,8 @@ def cmd_turn(p, args):
     if pulled.startswith("PULLED"):
         p.load()
     out, fetched = sync_bases(p)
-    gh = {}
-    for m in p.milestones():
-        pr = m.get("pr")
-        if m.get("status") in CLOSED or not pr or not pr.get("number"):
-            continue
-        if pr.get("state") == "merged":  # merged before this turn: gh only says how
-            gh[m["id"]] = gh_pr(p, pr["number"])[0] or {}
-            continue
-        state, old, got, why = refresh_pr(p, m, pr)
-        if why:
-            out.append(f"PR-ERROR {m['id']} #{pr['number']}: {why}")
-        elif state != old:
-            out.append(f"PR {m['id']} #{pr['number']} {state} (was {old})")
-        if state == "merged":
-            gh[m["id"]] = got
+    prs, gh = refresh_open_prs(p)
+    out += prs
     out += record_landings(p, gh, "--force" in args)
     for line in out or [f"SYNC {fetched} repos up to date"]:
         print(line)
