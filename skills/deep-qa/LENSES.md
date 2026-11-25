@@ -47,7 +47,7 @@ The strategic-programming lens: does the change leave the code simpler to change
 
 ### Journeys
 - **Runs:** P1 journeys exist, or the diff changes UI or an endpoint.
-- **How:** run the app (`/run`) and drive every P1 journey with headless Playwright, logging in as the repo's docs or seed data say. UI work: screenshot the built screens and have a cheap subagent compare them with the mock.
+- **How:** run the app (`/run`) and drive every P1 journey with headless Playwright, logging in as the repo's docs or seed data say. UI work: take the built screens with `~/.claude/skills/create-deep-pr/scripts/shots.mjs` (`--storage <state>` after logging in; it prints `SHOT <file> <w>x<h>` per screen), never read the PNGs yourself, and have a subagent on the `screenshot` row of `~/.claude/skills/deep-plan/agent-models.md` open each next to its mock and reply one line per screen: `<file> MATCHES` or `<file> OFF <difference>`.
 - **Bar:** a P1 journey that fails → `Blocker`; a screen off the mock → `Should fix`.
 - **Done when:** every P1 journey is passed or failed at a named step.
 

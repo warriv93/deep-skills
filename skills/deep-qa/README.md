@@ -12,4 +12,4 @@ Review lenses (`review` mode): defects through Claude Code's built-in `/code-rev
 /deep-qa [review | verify | full] [base ref]
 ```
 
-deep-plan calls it at its Phase 3 gate (`review`), Phase 4 (`verify`) and the second review gate. `scripts/a11y.mjs` is a copy of the author's `feature-qa` script; keep them identical.
+deep-plan calls it at its Phase 3 gate (`review`), Phase 4 (`verify`) and the second review gate.
