@@ -1390,6 +1390,10 @@ def cmd_launch(p, args):
 
 
 # --- hand-offs: the prompts that pass a milestone's planning, quality gate and retro to a fresh subagent ----
+ESTIMATE = ("Once the recon note is written, re-estimate the milestone's value, effort and verdict from it "
+            "(orchestrate-deep-plans' SKILL.md, Run state): effort from the code, migrations and contracts recon found, "
+            "value from who the brief serves. Open your first question to the user with one line, "
+            "`Value <level> · Effort <level>: <verdict>`, naming what recon changed since the cut's estimate.")
 HANDOFF_MODELS = {"plan": "opus", "ahead": "opus", "gate": "opus", "retro": "opus"}
 FRICTION = {"retry", "failed", "conflict", "approval", "denied"}
 FINDING_FIXES = "check|pointer|standard|delete|access|script|flag|brief|model|tool"
@@ -1547,9 +1551,10 @@ def handoff_text(p, m, kind):
     if kind == "plan":
         start = (f"Resume `/deep-plan` for {named} from its ledger, {book} (it names the phase)." if os.path.isfile(book)
                  else f"Start `/deep-plan` for {named} in {tree or p.repo}; its ledger will be {book}.")
-        return [start, orchestrated, ""] + handoff_rules(
+        return [start, orchestrated, ESTIMATE + f" Write them with `podium set milestone:{mid} value=… effort=… verdict=…`.", ""] + handoff_rules(
             p, "Return at the Phase 2 checkpoint, at the next context reset, or with a question, in at most 8 lines: "
-               "the phase reached, the files written, the background work wanted, the question if any.")
+               "the phase reached, the files written, the value, effort and verdict once re-estimated, the background work "
+               "wanted, the question if any.")
     base = milestone_repo(p, m)["base"]
     if kind == "ahead":
         if tree:
@@ -1562,13 +1567,13 @@ def handoff_text(p, m, kind):
                      "own ledger and checkpoint commits")
         return [f"Run `/deep-plan` for {named} through its Phase 2 checkpoint, documents only, {where}. Read "
                 f"`Reservations` in the main ledger, {os.path.join(p.root, 'state.md')}, first.",
-                f"Write nothing under {p.root}: the orchestrator records the milestone from your reply.", "",
+                f"Write nothing under {p.root}: the orchestrator records the milestone from your reply.", ESTIMATE, "",
                 "- Shared numbers: a new value from a sequence the whole project draws from (type and slot ids, enum "
                 f"codes, edit groups, migration numbers, ports) goes in as a placeholder `«<kind>:{mid}:<n>»`, since the "
                 "other planners are picking at the same time."] + handoff_rules(
             p, "Return at the Phase 2 checkpoint, at the next context reset, or with a question, in at most 8 lines: "
-               "the phase reached, the files written, its branch, every placeholder, the background work wanted, the "
-               "question if any.")
+               "the phase reached, the files written, its branch, every placeholder, the value, effort and verdict, the "
+               "background work wanted, the question if any.")
     return [f"Run `/deep-plan` for {named} from its Phase 3 quality gate (`~/.claude/skills/deep-plan/phase-3-exec.md`, "
             f"section \"Quality gate\") on through its Phases 4, 5 and 6, from its ledger, {book}. Start its review "
             "subagents in the foreground. The findings files deep-qa writes (`.deep-plan/findings-phase-3.md`, "
