@@ -4,7 +4,7 @@ Write the spec and the tasks yourself, from `spec-brief.md`, the mock URL (if an
 
 1. **Specify:** `spec.md`, with one `## User Story <n> - <title>` per journey of the Spec Brief (its acceptance scenarios as Given/When/Then), then functional requirements and success criteria; at most 3 `[NEEDS CLARIFICATION]` markers.
 2. **Clarify:** every marker resolved, from the Spec Brief or by asking the user.
-3. **Checklist:** for each domain the feature touches (API, data, security, UX), check the requirements in `spec.md` are complete, unambiguous and testable, and fix the ones that aren't.
+3. **Checklist:** for each domain the feature touches (API, events, data, security, UX), check the requirements in `spec.md` are complete, unambiguous and testable, and fix the ones that aren't.
 4. **Plan:** `plan.md`, the technical blueprint following `architecture.md`.
 5. **Tasks:** `tasks.md`, dependency-ordered, sliced by user story, tests first in every slice, in the Tasks format below.
 6. **Coverage check:** one subagent on the `coverage` row of [agent-models.md](agent-models.md) maps against `tasks.md`, to the task or slice that implements it: each resolved decision and success criterion in `spec-brief.md`, and, under `/orchestrate-deep-plans`, each outcome (`podium decisions --json`) of the decisions the milestone's brief lists under `Rests on: D<n>`. It flags anything unmapped, any non-goal that got a task, and task wording that shrinks a decision ("v1", "for now", "stub", "placeholder", "wired later", "static"). Fix `tasks.md` for each gap, or ask the user when the fix changes scope, then re-run. Done when the subagent returns no gaps.

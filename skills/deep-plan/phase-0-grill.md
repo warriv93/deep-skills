@@ -31,7 +31,7 @@ The repo answers first; the user answers only what the repo cannot.
 
 No UI surface → one line, "no UI surface — skipping mock", and go to Phase 1.
 
-1. **Build a throwaway mock** of the P1 flows with `/prototype` + `frontend-design` (+ `dataviz` for charts), Apple-style: fake data; P1 screens plus empty, loading, error and mobile states. Write it to `.deep-plan/mock/index.html` and iterate with targeted edits.
+1. **Build a throwaway mock** of the P1 flows with `/prototype` + `frontend-design` (+ `dataviz` for charts), matching the app's existing look (Apple-style for a new one): fake data; P1 screens plus empty, loading, error and mobile states. Write it to `.deep-plan/mock/index.html` and iterate with targeted edits.
 2. **Build the open UI questions in as live alternatives:** every open UI question in the Spec Brief, and every UI choice that comes up while mocking, gets a control in a floating Alternatives panel (segmented control, slider or toggle, recommended choice marked) that switches the mock between variants in place, plus a Copy choices button.
 3. **Serve it:** `python3 -m http.server 8766 --bind 127.0.0.1 -d .deep-plan` in the background (an orchestrated run's Podium server already serves `.deep-plan/`), then post `<url>/mock/` in your reply with a sentence on what it shows: the clickable mock, and the Alternatives panel that switches each open UI question between its variants.
 4. **Walk it screen by screen** with the user: hierarchy, flow, naming, each alternative; cut non-goals. Iterate on the same file until the user signs off.
