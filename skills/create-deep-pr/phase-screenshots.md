@@ -44,7 +44,7 @@ When the app runs on mocks or starts in under a minute, also capture each screen
 ## 4. Post
 
 ```bash
-<this skill's folder>/scripts/post-screenshots.sh <repo-root> <png>...
+~/.claude/skills/create-deep-pr/scripts/post-screenshots.sh <repo-root> <png>...
 ```
 
 The script commits the PNGs to the repo's `pr-screenshots` orphan branch, in a folder named after the PR branch, and pushes it. It prints one markdown image line per file, pinned to that commit, and leaves the working tree, index and current branch alone. Put the lines in the PR's Screenshots section, each under its caption; a before and after pair goes side by side in a two-column table.
