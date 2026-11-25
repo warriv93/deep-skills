@@ -72,4 +72,4 @@ drop
 [ -z "$(checked_out "$branch")" ] && git -C "$repo" branch -f -q "$branch" "$sha"
 
 echo "LANDED $base $(git -C "$repo" rev-parse --short "$sha")"
-echo "NEXT ~/.claude/skills/create-deep-pr/scripts/push-preview.sh $repo origin $base --paths <the work's dirs>; push only on the user's yes"
+echo "NEXT ~/.claude/skills/create-deep-pr/scripts/push-preview.sh $repo origin $base --paths <the work's dirs>; push as the user's push rule allows"

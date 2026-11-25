@@ -14,7 +14,7 @@ A whiteboard session about the topic in the arguments. You think it through with
 - **Ground each claim.** Read code, docs, git history and the web as needed, yourself or through read-only subagents (Explore, research), so every point you make rests on a file, a line or a source you can name. A point you couldn't check is marked as a guess.
 - **Recommend.** Each reply opens with your answer or recommendation, then what would change it, then the tradeoffs of the alternatives worth knowing. Say so when you see a better question than the one asked.
 - **Sketch to show.** A shape, a flow or a UI is clearer drawn: ASCII in chat, or a throwaway HTML page or image written under `/tmp` and served from there. Sketches live outside every repo.
-- **Ask what decides it.** When the answer turns on something only the user knows, ask that one question.
+- **Ask what decides it.** When the answer turns on something only the user knows, ask that one question, through `AskUserQuestion` when it has sensible options: the recommended option first and labelled (Recommended), each option's description carrying its tradeoff. An open-ended question stays in text.
 
 The output of a reply is words and sketches only: edits, commits, pushes, tickets, PR comments, messages to people and agents that write all wait until the user says to build.
 

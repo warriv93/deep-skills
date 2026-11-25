@@ -199,6 +199,26 @@ class Merge(Run):
         self.assertEqual([c["sha"] for c in self.milestone()["stories"][0]["commits"]], [tidy[:10], change[:10]])
         self.assertEqual(git(self.feature, "show", "HEAD:a.txt"), "tidied")
 
+    def test_a_story_lands_on_a_moved_milestone_branch_without_a_merge_commit(self):
+        tree = self.story_branch("S1")
+        commit(tree, "s.txt", "feat: one\n\nStory: S1")
+        moved = commit(self.feature, "m.txt", "meanwhile")
+        self.assertTrue(self.podium("merge", "S1").startswith("MERGED S1 1 commits"))
+        self.assertEqual(git(self.feature, "log", "--merges", "--format=%H", "feat"), "")
+        self.assertEqual(git(self.feature, "rev-parse", "HEAD~1"), moved)
+        self.assertEqual(git(self.feature, "rev-parse", "HEAD"), git(tree, "rev-parse", "HEAD"))
+        self.assertEqual(self.milestone()["stories"][0]["commits"][0]["sha"], git(self.feature, "rev-parse", "HEAD")[:10])
+
+    def test_a_story_branch_no_worktree_has_is_rebased_where_the_milestone_branch_is(self):
+        tree = self.story_branch("S1")
+        commit(tree, "s.txt", "feat: one\n\nStory: S1")
+        git(self.main, "worktree", "remove", tree)
+        commit(self.feature, "m.txt", "meanwhile")
+        self.assertTrue(self.podium("merge", "S1").startswith("MERGED S1 1 commits"))
+        self.assertEqual(git(self.feature, "rev-parse", "--abbrev-ref", "HEAD"), "feat")
+        self.assertEqual(git(self.feature, "rev-parse", "HEAD"), git(self.main, "rev-parse", "story/S1"))
+        self.assertEqual(git(self.feature, "log", "--merges", "--format=%H", "feat"), "")
+
     def test_a_merge_lists_the_out_of_scope_files_of_the_current_attempt(self):
         self.ext().prompt(Podium(self.run_dir), "assign", "S1")
         commit(self.story_branch("S1"), "s.txt", "feat: one\n\nStory: S1")
@@ -1864,7 +1884,7 @@ class Prompts(Run):
         self.assertEqual(sorted(extension.commands(self.ext())),
                          ["approve", "backfill", "breakdown", "brief", "commits", "dispatcher", "handoff", "land", "launch", "merge",
                           "peek", "prs", "turn"])
-        self.assertIn("\n    merge\n        Merge story/<id> into its milestone's branch", self.podium("help"))
+        self.assertIn("\n    merge\n        Rebase story/<id> onto its milestone's branch", self.podium("help"))
 
 
 def load_extension():

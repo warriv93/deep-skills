@@ -8,7 +8,7 @@ argument-hint: [issue link] [--ready] [--skip-tests] [notes for the description]
 
 Take the current changes to an open GitHub PR: a draft, unless the user passes `--ready` or says it's ready for review. Push only a HEAD that passed the checks in step 4.
 
-Before any push, also outside `/create-deep-pr`, run `~/.claude/skills/create-deep-pr/scripts/push-preview.sh [<repo>] [<remote>] [<branch>]` and show its output.
+Before any push, also outside `/create-deep-pr`, run `~/.claude/skills/create-deep-pr/scripts/push-preview.sh [<repo>] [<remote>] [<branch>] --paths <every directory and file the task changed>` and show its output.
 
 Never request a Copilot review (`--add-reviewer @copilot` or otherwise): this skill serves private repos without a Copilot plan. The agent review in step 4b is the PR's review before a human.
 
@@ -46,7 +46,9 @@ Build the **CI recipe**: the commands the CI jobs that gate a PR run (`.github/w
 - With no CI config, use the project's own scripts (`package.json`, `Makefile`, `justfile`, `pyproject.toml`, `pom.xml`) for lint, types, build and tests.
 - Leave out jobs that need secrets or deploy infrastructure, and name them in the PR's Tests section.
 
-Run the recipe against the committed HEAD with a clean tree. Run long checks in the background and tell the user. The step is done when every job in the recipe passed.
+Run the recipe against the committed HEAD with a clean tree. Run long checks in the background and tell the user. The step is done when the run is green.
+
+**Green** means every check that ran passed and nothing CI will run was skipped locally. It is the bar this run's push yes waits on (the user's `CLAUDE.md`), so a `--skip-tests` run is not green: push it only on the user's explicit yes.
 
 - On a failure, fix the cause. Commit the fix, amending when it belongs to the same step, and re-run until green.
 - If a failure isn't caused by the branch (the base branch is broken, say), stop and tell the user. Push past it only with their say-so, and note it under "Not in this PR".
@@ -73,7 +75,7 @@ Run this step when the branch changes what a user sees (templates, styles, compo
 
 ## 6. Push and open the PR
 
-Run `push-preview.sh <repo-root> origin <branch> [--paths <this task's directories>]` and show its output: the target, each commit, the file count and any suspicious file. Done when it exited 0 with no `SUSPICIOUS` line and no `FLAG` on a commit; otherwise stop and put the lines to the user (exit 2 means the remote has commits the branch lacks, so rebasing or merging is their call).
+Run `push-preview.sh <repo-root> origin <branch> --paths <every directory and file this task changed>` and show its output: the target, each commit, the file count and any suspicious file. Done when it exited 0 with no `SUSPICIOUS` line and no `FLAG` on a commit; otherwise stop and put the lines to the user (exit 2 means the remote has commits the branch lacks, so rebasing or merging is their call).
 
 ```bash
 git push -u origin <branch>

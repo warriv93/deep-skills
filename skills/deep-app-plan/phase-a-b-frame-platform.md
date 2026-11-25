@@ -14,7 +14,7 @@
 
 ## Phase B — Platform interview (one-way doors)
 
-Ask everything the user has not already stated in **one batched `AskUserQuestion` pass**, each with a recommended default:
+Ask everything the user has not already stated through `AskUserQuestion` when available, the recommended option first and labelled (Recommended), each option's description carrying its tradeoff; at most three questions per call, so the list below takes several calls. Without `AskUserQuestion`, the same questions in text.
 
 - **Home:** GitHub/GitLab, public/private, org, licence (MIT default).
 - **Hosting:** Pages / Workers / Vercel / Railway / Supabase / Firebase.

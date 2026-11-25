@@ -358,7 +358,8 @@ def outcome(step, results):
 
 
 def cmd_merge(p, args):
-    """Merge story/<id> into its milestone's branch (--no-ff), then install and run the milestone's contract there.
+    """Rebase story/<id> onto its milestone's branch and fast-forward the branch to it, then install and run the
+    milestone's contract there.
 
     merge <story>... | <milestone>/<story>... [--land [--next]] [--force]
     It merges in the worktree that has the milestone's branch checked out, else in the repo checkout, and runs
@@ -367,7 +368,7 @@ def cmd_merge(p, args):
       MERGED <id> <n> commits; ready: <ids>   story done, every commit on story/<id> recorded, then
         OUT-OF-SCOPE <id> <path>: <why>        per `NOTE out-of-scope` line of the story's current attempt
       EMPTY <id>                               story/<id> has no commit beyond the milestone's branch; nothing merged
-      CONFLICT <id> <n>                        merge aborted; n = conflicts so far
+      CONFLICT <id> <n>                        rebase aborted; n = conflicts so far
       RED <id> <cmd> + the log's last 40 lines merge undone (reset --hard ORIG_HEAD)
       INSTALL-FAILED <id> <cmd> + the log's last 40 lines   quality.install failed; merge undone
       CONTRACT-CHANGED <digest> <repo>: <cmd>  not approved on this machine (`approve`); nothing merged
@@ -415,17 +416,17 @@ def merge_story(p, target, force):
     cwd = tree if tree and os.path.isdir(tree) else p.repo
     if git(p, "rev-parse", "--abbrev-ref", "HEAD", cwd=cwd).stdout.strip() != branch:
         git(p, "switch", "--end-of-options", branch, cwd=cwd)
-    commits = git_commits(p, ["--end-of-options", f"{branch}..{story_branch}"])
-    if not commits:
+    if not git_commits(p, ["--end-of-options", f"{branch}..{story_branch}"], stats=False):
         print(f"EMPTY {s['id']}")
         sys.exit(5)
-    if git(p, "merge", "--no-ff", "--no-edit", story_branch, check=False, cwd=cwd).returncode:
-        git(p, "merge", "--abort", check=False, cwd=cwd)
+    if not rebase_onto(p, story_branch, branch, cwd):
         s["conflicts"] = s.get("conflicts", 0) + 1
         p.event("conflict", m["id"], s["id"])
         p.save()
         print(f"CONFLICT {s['id']} {s['conflicts']}")
         sys.exit(2)
+    commits = git_commits(p, ["--end-of-options", f"{branch}..{story_branch}"])
+    git(p, "merge", "--ff-only", "--end-of-options", story_branch, cwd=cwd)
     log = os.path.join(p.root, "contract.log")
     results = []
     open(log, "w").close()
@@ -455,6 +456,20 @@ def merge_story(p, target, force):
     print(f"MERGED {s['id']} {len(commits)} commits; ready: {' '.join(p.ready(m)) or '-'}")
     for note in out_of_scope(p, m, s):
         print(f"OUT-OF-SCOPE {s['id']} {note}")
+
+
+def rebase_onto(p, story_branch, branch, cwd):
+    """Rebase story_branch onto branch, where story_branch is checked out, else in cwd, which ends back on branch;
+    False on a conflict, with the rebase aborted."""
+    tree = checked_out(p.repo, story_branch)
+    where = tree if tree and os.path.isdir(tree) else cwd
+    argv = ["rebase", "--end-of-options", branch] + ([] if where == tree else [story_branch])
+    ok = not git(p, *argv, check=False, cwd=where).returncode
+    if not ok:
+        git(p, "rebase", "--abort", check=False, cwd=where)
+    if where != tree:
+        git(p, "switch", "--end-of-options", branch, cwd=cwd)
+    return ok
 
 
 def out_of_scope(p, m, s):
