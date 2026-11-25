@@ -70,6 +70,7 @@ The tool's [`sample/`](https://github.com/warriv93/podium-dashboard/tree/main/sa
 - `milestones[].priority`, `epics[].priority`: `"must"` or `"should"` (Priority, above); absent or `null`, nice to have.
 - `milestones[].status`: `done` `working` `todo` `draft` `parked` `later` `dropped` `moved`. A `moved` milestone was folded into `movedTo` by the cut ([milestone-cut.md](milestone-cut.md)): it is never suggested, planned or landed, and a wait on it is a wait on the milestone its moves end in.
 - `milestones[].cut`: `{pattern, valuable, kept?}`, how the cut made it.
+- `milestones[].summary`, `milestones[].goal`: one sentence each, in product words: what the milestone changes, and what that gains and for whom. The Podium's milestone panel opens on them, so the user can choose what to start from them alone. The cut writes both; mapping a run fills them for any milestone missing one, from its cut, brief and recon.
 - `decisions[]`: `{id, epic, question, type, affects, blockedBy, status, owner?, outcome?, missing?}`, an epic-wide question settled before its cut ([milestone-cut.md](milestone-cut.md), Epic decisions). `status`: `open` `resolved` `out-of-scope` `invalidated`; `type`: `discussion` `research` `prototype` `unblock`; `owner` claims it like a milestone's.
 - `milestones[].grilled`: when its questions were answered while another milestone was active; it is the suggested next milestone once that one lands.
 - `milestones[].phase`: `recon` `spec` `mock` `architecture` `stories` `build` `gate` `verify` `land`.

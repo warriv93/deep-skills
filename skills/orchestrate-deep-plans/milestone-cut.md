@@ -68,6 +68,6 @@ Done when every warning is answered and the cut is approved.
 
 ## On approval
 
-1. **Create** each new milestone: `podium set epic:<epic> 'milestones+={"id":"<id>","title":"<title>","status":"todo","deps":[…],"cut":{"pattern":"<slug>","valuable":<true|false>}}'` with an event. Done when every milestone of the cut is in `podium.json` with its `cut`.
+1. **Create** each new milestone: `podium set epic:<epic> 'milestones+={"id":"<id>","title":"<title>","status":"todo","deps":[…],"summary":"<what it changes>","goal":"<what that gains, for whom>","cut":{"pattern":"<slug>","valuable":<true|false>}}'` with an event (SKILL.md, Run state, for `summary` and `goal`). Done when every milestone of the cut is in `podium.json` with its `cut`, `summary` and `goal`.
 2. **Fold** each accepted warning or moved item: `podium move <m> --to <target> --pattern <p>`, then append to the target's brief a section `## Moved in from <m>` quoting the moved milestone's scope as input for its grill, not as decisions. An Asana-linked moved milestone → ask the user before closing its subtask ([asana.md](asana.md)), and add its link to the target's brief. Done when each prints `MOVED <m> → <target>` and its target's brief holds the section.
 3. **Override** each kept warning: `podium set milestone:<id> 'cut={"pattern":"<slug>","valuable":false,"kept":"<why>"}'`, and on every milestone that needs it a `waitsFor` entry on it (SKILL.md, Waiting for another milestone). Done when each kept milestone has `cut.kept` and each milestone needing it waits for it.
