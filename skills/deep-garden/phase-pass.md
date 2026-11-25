@@ -83,6 +83,6 @@ Done when every remaining entry has its preview output.
 
 ## 8. Write the report and notify
 
-Write `~/.podium/garden/<date>.md` in the shape SKILL.md gives: the entries under the helper's numbers (gaps where a draft failed are fine), push previews verbatim. Then notify: on macOS `osascript -e 'display notification "<n> refactors drafted, <m> skipped" with title "deep-garden" subtitle "<report path>"'`; and end the run with the report path and one line per entry, `<n>. <repo> · <slug> — <change>`, closing on how to answer: `/deep-garden approve <n…>` or `reject <n…> [why]`.
+Write `~/.podium/garden/<date>.md` in the shape SKILL.md gives: the entries under the helper's numbers (gaps where a draft failed are fine), push previews verbatim. Then notify with `PushNotification` (load it with ToolSearch `select:PushNotification`), `message: "deep-garden: <n> refactors drafted, <m> skipped. <report path>"`, `status: "proactive"`. No such tool, as in an unattended scheduled run → on macOS `osascript -e 'display notification "<n> refactors drafted, <m> skipped" with title "deep-garden" subtitle "<report path>"'`; and end the run with the report path and one line per entry, `<n>. <repo> · <slug> — <change>`, closing on how to answer: `/deep-garden approve <n…>` or `reject <n…> [why]`.
 
 Done when the report accounts for every `REPO`, `SKIP`, `PICK`, `BAD` and `QUESTION` line of this pass, and the notification is sent.

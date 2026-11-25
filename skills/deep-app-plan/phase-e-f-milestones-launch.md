@@ -4,8 +4,8 @@
 
 For each open milestone, in order:
 
-1. **Hand off:** mark the milestone `in progress` in the ledger, then ask the user to `/clear` and run `/deep-plan M<n>: <milestone frame>`. `/deep-plan` reads the project ledger's Platform and contract blocks during recon. A milestone with three or more independent stories can run through `/orchestrate-deep-plans <frame>` instead, which drives `/deep-plan` itself.
-2. **Resume** when the user re-invokes `/deep-app-plan` after the `/deep-plan` debrief.
+1. **Hand off:** mark the milestone `in progress` in the ledger, then start a fresh `Agent` subagent, a *strong subagent* with `run_in_background: true`, so each milestone runs from a small context. Its prompt: run `/deep-plan M<n>: <milestone frame>`, reading the project ledger's Platform and contract blocks during recon; return at each sign-off gate, question to the user or context reset, and at the debrief, in at most 8 lines. A returned question or gate → put it to the user, then continue the same subagent with `SendMessage` and the answer. A context reset → a new fresh subagent whose prompt resumes `/deep-plan` from the milestone's ledger, `.deep-plan/state.md`. A milestone with three or more independent stories can run through `/orchestrate-deep-plans <frame>` instead, which drives `/deep-plan` itself.
+2. **Resume** when a subagent returns the `/deep-plan` debrief.
 3. **Deploy** the milestone to prod and confirm it live.
 4. **Record:** tick the milestone in the ledger; add lessons learned to `CLAUDE.md`.
 

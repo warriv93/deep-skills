@@ -16,12 +16,12 @@ Calibration for what step 4 keeps:
 
 ### Defects
 - **Runs:** always.
-- **How:** a strong subagent runs the Standards axis of the dual-axis `code-review` skill (`~/.claude/skills/code-review/SKILL.md`) with the review pack, plus a hunt for bugs: trace each changed branch, boundary and error path to a concrete failing input. Add `architecture.md`'s seams to its prompt, so a producer–consumer mismatch is a row. A bug fix: its test goes red with the fix reverted in a scratch worktree and green with it back; no test → `Should fix`.
+- **How:** two passes, their rows pooled. A strong subagent runs the Standards axis of `code-deep-review` (`~/.claude/skills/code-deep-review/SKILL.md`) with the review pack. The bug hunt is Claude Code's built-in `/code-review`: it takes no brief and runs as a fork of this conversation, so first show `architecture.md`'s seams here (a producer–consumer mismatch is then a row), then invoke the Skill tool with `skill: "code-review"`, `args: "high <base>...HEAD"`, never `--comment` or `--fix`. Each finding it returns (`file:line`, summary, failure scenario) becomes a row. A bug fix: its test goes red with the fix reverted in a scratch worktree and green with it back; no test → `Should fix`.
 - **Done when:** every changed file has been read and its rows are pooled.
 
 ### Spec
 - **Runs:** a spec or acceptance criteria exist.
-- **How:** a strong subagent runs the Spec axis of `code-review` with the spec, the seams and the review pack: spec items missing, and scope creep beyond them.
+- **How:** a strong subagent runs the Spec axis of `code-deep-review` with the spec, the seams and the review pack: spec items missing, and scope creep beyond them.
 - **Done when:** every acceptance criterion is marked met, missing or partly met, with file:line.
 
 ### Design

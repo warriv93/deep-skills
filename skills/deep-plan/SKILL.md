@@ -30,6 +30,8 @@ Start every turn by reading the ledger and resuming from it; create it if missin
 
 **Checkpoint** = every artifact of the phase is on disk and committed (Shared rules, Commits), and the ledger names the next phase, so a fresh context can resume from disk alone. End each phase on a checkpoint.
 
+**Context reset**: where a phase calls for one, the next phase runs in a fresh `Agent` subagent, a *strong subagent* started with `run_in_background: true`, so this conversation keeps only the hand-overs and their replies. Its prompt: resume `/deep-plan` from the ledger at the phase it names; return at the next context reset, sign-off gate or question to the user, in at most 8 lines. A returned question or gate → put it to the user, then continue the same subagent with `SendMessage` and the answer. Another reset → a new fresh subagent from the ledger.
+
 ## Orchestrated runs
 
 `.deep-plan/podium/podium.json` exists → `/orchestrate-deep-plans` owns this run:
@@ -39,7 +41,7 @@ Start every turn by reading the ledger and resuming from it; create it if missin
 - At every checkpoint: `set milestone:<id> artifacts+=<{name, path, phase}>`, one `artifacts+=` per new planning file.
 - Before every question to the user and every sign-off gate, run `podium human`. Unavailable or mobile → orchestrate-deep-plans' rule for that mode (its SKILL.md, The human) replaces or trims asking.
 - While a sign-off gate waits on the user, `set . needsYou=<{reason}>`; `set . needsYou=null` on sign-off.
-- Where a phase would ask the user to `/clear` and re-invoke `/deep-plan`, stop at that checkpoint and return to `/orchestrate-deep-plans` instead: it carries on in a fresh subagent.
+- Where a phase calls for a context reset, stop at that checkpoint and return to `/orchestrate-deep-plans` instead: it carries on in a fresh subagent from its own hand-off.
 - Before Phase 2's checkpoint, `podium breakdown --check <tasks.md> --milestone <id>` exits 0: each `MISSING` line it prints is a gap in `tasks.md` or a planning file to fix (orchestrate-deep-plans' phase-2-breakdown.md, Break it down). It writes nothing, so rerun it after every fix.
 - After Phase 2's checkpoint, return to `/orchestrate-deep-plans`. It builds the slices as stories and re-enters Phase 3 at its quality gate.
 

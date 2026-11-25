@@ -12,7 +12,7 @@ Builds one feature end to end in an existing codebase: recon, a grilled spec, a 
 - Writes `spec.md` and `tasks.md` in the slice format `podium breakdown` reads, then builds slice by slice with `/tdd`, one commit per green slice.
 - Runs `/deep-qa` as its quality gate after the slices (defects, spec, design and security), then a verification loop on `/deep-qa`'s running lenses: the contract, the real app through `/run`, accessibility and performance, with a fix loop. Three failed attempts on one failure, or two rounds of gate churn, stop the loop with a report.
 - Ends on a debrief (what landed, compromises, weak points, inputs needed, next steps) and asks: merge, iterate or park. Merge updates the docs and `CLAUDE.md`, closes the ledger and lands the branch on the base locally with `scripts/land.sh`: rebased in a temporary worktree, the contract green, the base fast-forwarded.
-- Between phases it asks you to `/clear` and re-invoke `/deep-plan`.
+- After the grill it hands the rest of planning to a fresh background subagent that resumes from the ledger, so the session's context stays small; its questions still come to you.
 
 Nothing leaves the machine unless you ask. A PR goes through `/create-deep-pr` on your request, and pushing the base waits for your yes.
 
@@ -34,7 +34,7 @@ Run it from the repo root; it symlinks every skill into `~/.claude/skills/`.
 
 Skills it calls:
 
-- `/deep-qa` for every review gate and the verification, and through it `code-review` (Matt Pocock's dual-axis review).
+- `/deep-qa` for every review gate and the verification, and through it the built-in `/code-review` and `code-deep-review`.
 - When present: `/wayfinder`, `/grill-with-docs` (`/grilling` and `/domain-modeling`), `/research`, `/prototype`, `frontend-design`, `dataviz`, `/codebase-design`, `/setup-pre-commit`, `git-guardrails-claude-code`, `/tdd`, `/run`, `/security-review`, `/diagnosing-bugs`.
 - `/create-deep-pr` when you ask for a PR.
 

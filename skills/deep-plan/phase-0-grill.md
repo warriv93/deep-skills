@@ -38,4 +38,4 @@ No UI surface → one line, "no UI surface — skipping mock", and go to Phase 1
 5. **Fold the outcome back:** each alternative's chosen variant becomes a decision in `spec-brief.md`; amend `CONTEXT.md` and ADRs; record `.deep-plan/mock/` in `spec-brief.md` as the visual reference.
 6. **Gate:** the user signs off the mock. Then checkpoint.
 
-Grill and mock context is disposable. After the last sign-off of this file, ask the user to run `/clear` and re-invoke `/deep-plan`; Phase 1 starts from the ledger, `recon-note.md` and `spec-brief.md`.
+Grill and mock context is disposable. After the last sign-off of this file, Phase 1 runs after a context reset (SKILL.md, Context reset), starting from the ledger, `recon-note.md` and `spec-brief.md`.

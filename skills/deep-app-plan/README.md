@@ -20,7 +20,7 @@ What leaves the machine: a new repo on the chosen host, its pushes, the platform
 /deep-app-plan <what the app is, in a sentence>
 ```
 
-State lives in `.deep-plan/project.md`, the project ledger, which every turn reads first. For each milestone the skill asks you to `/clear` and run `/deep-plan M<n>: <milestone frame>`, then re-invoke `/deep-app-plan` after the debrief.
+State lives in `.deep-plan/project.md`, the project ledger, which every turn reads first. Each milestone runs `/deep-plan M<n>: <milestone frame>` in a fresh background subagent that brings its questions and sign-offs back to you, and the skill carries on after its debrief.
 
 ## Install
 
