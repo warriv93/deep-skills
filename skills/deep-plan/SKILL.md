@@ -49,7 +49,7 @@ Start every turn by reading the ledger and resuming from it; create it if missin
 - **Subagent protocol:** every *cheap* or *strong subagent*, and every other spawn, follows [subagent-protocol.md](subagent-protocol.md): model, brief and reply cap. Read it before the run's first spawn.
 - **Code speaks for itself:** everything that lands in the code (comments, test names, identifiers, log messages, docs outside `.deep-plan/`) describes the product and the code in their own terms. It never names planning ids (slice, story, milestone, decision or wave ids such as S3, M2, D7), the brief, the spec or the ledger: they go stale and a reader of the code doesn't need them. Default to no comments; add one only for a non-obvious external constraint, a third-party workaround, or a reason the code can't show. Planning ids belong in `.deep-plan/` and commit trailers only.
 - **Commits:** one commit per green slice, conventional message. Every checkpoint commits too: the phase's files from the ledger table and `state.md`, staged by name, as `docs(plan): <phase> for <feature>`, so `git status` is clean between phases. `contract.logs/` stays out of history: list `/.deep-plan/contract.logs/` in `.git/info/exclude`.
-- **Branch:** planning commits go on the feature's branch from the first checkpoint. Phase R on the base branch → `git switch -c plan/<slug>`; Phase 2's speckit branch grows from it, then `git branch -d plan/<slug>`. Finished work merges into the base locally (Phase 6); pushing and a PR happen only on the user's explicit request.
+- **Branch:** planning commits go on the feature's branch from the first checkpoint. Phase R on the base branch → `git switch -c plan/<slug>`; Phase 2 renames it to the feature branch, named by the repo's branch convention (`git branch -m plan/<slug> <feature branch>`). Finished work merges into the base locally (Phase 6); pushing and a PR happen only on the user's explicit request.
 
 ## Phases
 
@@ -59,7 +59,7 @@ Run in order. On entering a phase, read its file (sibling of this `SKILL.md`):
 | --- | --- | --- |
 | R, 0, 0.5 | [phase-0-grill.md](phase-0-grill.md) | Spec Brief (and mock, if UI) signed off by the user |
 | 1 | [phase-1-arch.md](phase-1-arch.md) | `architecture.md` written; the contract exits 0 |
-| 2 | [phase-2-sdd.md](phase-2-sdd.md) | `spec.md` + `tasks.md` on disk |
+| 2 | [phase-2-sdd.md](phase-2-sdd.md) | `spec.md` + `tasks.md` on disk, `tasks.md` in the Tasks format |
 | 3 | [phase-3-exec.md](phase-3-exec.md) | every slice committed green; Phase 3 gate passed |
 | 4 | [phase-4-verify.md](phase-4-verify.md) | every success criterion passes, or loop budget spent and reported |
 | 5, 6 | [phase-5-6-land.md](phase-5-6-land.md) | debrief given; docs true; ledger closed; merged into the base, or parked |

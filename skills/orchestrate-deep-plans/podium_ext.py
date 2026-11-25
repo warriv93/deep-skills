@@ -797,7 +797,7 @@ def task_paths(text):
 
 
 def parse_tasks(path):
-    """deep-plan's speckit tasks.md: {"groups": [...], "spec": the spec.md beside it or None}.
+    """deep-plan's tasks.md (its phase-2-sdd.md, Tasks format): {"groups": [...], "spec": the spec.md beside it or None}.
 
     A group is a `## Phase <n>: User Story <k> - <title> (Priority: P<n>)` section: its `**Goal**:`, `**Critical**:`
     and `**Context**:` fields, its task lines (`- [ ] T012 [P] [US1] … in path/to/file`, continuation lines joined),
@@ -922,7 +922,7 @@ def started(s):
 
 def cmd_breakdown(p, args):
     """<tasks.md> [--milestone M] [--prefix P] [--dry-run | --check] [--force]: the milestone's stories and briefs from
-    deep-plan's speckit tasks.md (phase-2-breakdown.md).
+    deep-plan's tasks.md (phase-2-breakdown.md).
 
     One story per `## Phase <n>: User Story <k>` section, id `S<k>`, or `<P><k>` with --prefix: title, summary, files
     from its task lines, deps from the Dependencies section and its own `**Dependencies**:` field, overlapAfter,
