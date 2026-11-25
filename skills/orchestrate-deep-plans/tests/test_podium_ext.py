@@ -1894,6 +1894,67 @@ def load_extension():
     return module
 
 
+class StalePodium(unittest.TestCase):
+    """self_update when this process's podium is installed from git with a self-update older than the check of what pip
+    installed: it reports updates pip skipped, so the turn reinstalls it itself. Every git and pip call is faked."""
+
+    URL = "https://github.com/warriv93/podium-dashboard"
+
+    def setUp(self):
+        self.ext = load_extension()
+        self.ext.update_skills = lambda: None
+        self.calls, self.passed = [], []
+        self.dist = {"url": self.URL, "vcs_info": {"vcs": "git", "commit_id": "a" * 40}}
+        self.skipped = False
+
+        class Failed(Exception):
+            pass
+
+        def output(argv, timeout, what):
+            self.calls.append(argv)
+            if argv[-1].startswith("git+") and not self.skipped:
+                self.dist = {**self.dist, "vcs_info": {**self.dist["vcs_info"], "commit_id": argv[-1].rpartition("@")[2]}}
+            return ""
+        self.update = types.SimpleNamespace(direct_url=lambda: self.dist, remote_head=lambda url: "b" * 40, upgrade_old_pip=lambda: None,
+                                            output=output, PIP_TIMEOUT=300, Failed=Failed)
+        self.ext.installed_update = lambda: self.update
+        self.ext.pass_through = lambda *a, **kw: self.passed.append(a)
+
+    def turn(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.ext.self_update(None)
+        return out.getvalue().splitlines()
+
+    def test_an_old_self_update_is_replaced_by_a_forced_install_at_the_remote_head(self):
+        self.assertEqual(self.turn(), ["UPDATED podium aaaaaaa\u2192bbbbbbb", "RESTART server"])
+        self.assertEqual([a[4:] for a in self.calls], [[*([] if sys.prefix != sys.base_prefix else ["--user"]), "--quiet", "--force-reinstall",
+                                                         "--no-deps", f"git+{self.URL}@{'b' * 40}"]])
+        self.assertEqual(self.passed, [])
+
+    def test_an_old_install_already_at_the_remote_head_is_ok_and_left_alone(self):
+        self.dist["vcs_info"]["commit_id"] = "b" * 40
+        self.assertEqual(self.turn(), ["OK podium bbbbbbb"])
+        self.assertEqual((self.calls, self.passed), ([], []))
+
+    def test_a_reinstall_that_leaves_the_old_commit_warns(self):
+        self.skipped = True
+        self.assertEqual(self.turn(), ["WARN podium pip install left aaaaaaa, wanted bbbbbbb"])
+
+    def test_a_podium_whose_self_update_checks_the_install_updates_itself(self):
+        self.update.installed_commit = lambda: "a" * 40
+        self.assertEqual(self.turn(), [])
+        self.assertEqual((self.calls, self.passed), ([], [("podium", "self-update")]))
+
+    def test_an_editable_install_or_another_podium_tool_is_left_to_self_update(self):
+        self.dist = {"url": "file:///x", "dir_info": {"editable": True}}
+        self.turn()
+        self.ext.PODIUM = ["/elsewhere/podium"]
+        self.dist = {"url": self.URL, "vcs_info": {"vcs": "git", "commit_id": "a" * 40}}
+        self.turn()
+        self.assertEqual((self.calls, self.passed), ([], [("podium", "self-update")] * 2))
+
+
 class SelfUpdate(unittest.TestCase):
     """self_update on a temp clone of a bare "skills repo" holding skill/podium_ext.py, with a stub `podium`."""
 

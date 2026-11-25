@@ -8,6 +8,7 @@ phase-3-build.md's, next to this file.
 """
 import glob
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -2131,12 +2132,55 @@ def pass_through(label, *args, timeout, cwd=None):
         print(f"WARN {label} {(r.stderr.strip().splitlines() or [f'{args[0]} failed'])[-1]}")
 
 
+def installed_update():
+    from podium_dashboard import update
+    return update
+
+
+def stale_podium(update):
+    """The git URL and commit of this process's podium when its self-update predates checking what pip installed, or None.
+    That self-update reports updates pip skipped, as every commit carries the same version, so it can't fix itself."""
+    if PODIUM != [sys.executable, "-m", "podium_dashboard"] or hasattr(update, "installed_commit"):
+        return None
+    info = update.direct_url() or {}
+    vcs = info.get("vcs_info") or {}
+    if (info.get("dir_info") or {}).get("editable") or vcs.get("vcs") != "git" or not info.get("url"):
+        return None
+    return info["url"], vcs.get("commit_id") or ""
+
+
+def reinstall_podium(update, url, old):
+    try:
+        new = update.remote_head(url)
+        if new == old:
+            return print(f"OK podium {old[:7]}")
+        update.upgrade_old_pip()
+        user = () if sys.prefix != sys.base_prefix else ("--user",)
+        update.output([sys.executable, "-m", "pip", "install", *user, "--quiet", "--force-reinstall", "--no-deps", f"git+{url}@{new}"],
+                      update.PIP_TIMEOUT, "pip install")
+    except update.Failed as e:
+        return print(f"WARN podium {e}")
+    importlib.invalidate_caches()
+    got = ((update.direct_url() or {}).get("vcs_info") or {}).get("commit_id")
+    if got != new:
+        return print(f"WARN podium pip install left {(got or 'no commit')[:7]}, wanted {new[:7]}")
+    print(f"UPDATED podium {old[:7]}→{new[:7]}")
+    print("RESTART server")
+
+
 def self_update(p):
     """The start of a turn: update this skill's clone, then the podium tool, passing its lines through. Never fails."""
     try:
         update_skills()
     except Exception as e:
         print(f"WARN skills {e}")
+    try:
+        update = installed_update()
+        stale = stale_podium(update)
+    except Exception:
+        stale = None
+    if stale:
+        return reinstall_podium(update, *stale)
     pass_through("podium", "self-update", timeout=300)
 
 
