@@ -2,7 +2,7 @@
 
 Every spawn from `/deep-plan` or `/orchestrate-deep-plans` follows this. The orchestrator's context is the long-lived one: each token in it is re-read on every later turn, so a read early in a run is paid for again on each turn after it. These rules keep that context small.
 
-A spawn is ready when its brief names a model and ends with a reply cap.
+A spawn is ready when its brief names a model and effort and ends with a reply cap.
 
 ## Delegate or read
 
@@ -14,15 +14,7 @@ A spawn is ready when its brief names a model and ends with a reply cap.
 
 ## Model
 
-Every spawn names its model; an unnamed one inherits the session's, usually Opus.
-
-| Model | Work |
-| --- | --- |
-| `haiku`, the *cheap subagent* | recon search, inventory, security pass, screenshot comparison, mechanical checks |
-| `sonnet`, the default | builders, background drafts, domain stories |
-| `opus`, the *strong subagent* | code-review gates, `/diagnosing-bugs`, planning and landing hand-offs, correctness-critical stories (money, dates, concurrency, auth, migrations) |
-
-A `haiku` bulk read can spend more on thinking than on its reply: ask it for a direct answer with no extended reasoning.
+Every spawn names its model and effort from its job's row in [agent-models.md](agent-models.md), which also defines the *cheap* and *strong subagent* and when to escalate; an unnamed one inherits the session's, usually Opus.
 
 ## Brief
 

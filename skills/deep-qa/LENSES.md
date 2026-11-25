@@ -33,7 +33,7 @@ The strategic-programming lens: does the change leave the code simpler to change
 
 ### Security
 - **Runs:** always.
-- **How:** `/security-review` as a cheap subagent over the review pack.
+- **How:** `/security-review` as a subagent on the `security` row of `~/.claude/skills/deep-plan/agent-models.md` over the review pack.
 - **Bar:** Critical → `Blocker`; High → `Should fix`.
 - **Done when:** every changed endpoint, query and input path has been checked or has a row.
 

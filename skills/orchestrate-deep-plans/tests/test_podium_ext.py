@@ -2009,6 +2009,25 @@ class SelfUpdate(unittest.TestCase):
         self.assertTrue(self.update()[0].startswith("WARN podium"))
 
 
+class AgentModels(unittest.TestCase):
+    """Story and hand-off models come from agent-models.md's routing table."""
+
+    def test_reads_every_row_it_routes_by_from_the_real_file(self):
+        ext = load_extension()
+        for key in ("story", "story-critical", "plan", "gate", "retro"):
+            self.assertRegex(ext.MODELS[key], ext.MODEL, key)
+        self.assertEqual(ext.HANDOFF_MODELS, {"plan": ext.MODELS["plan"], "ahead": ext.MODELS["plan"],
+                                              "gate": ext.MODELS["gate"], "retro": ext.MODELS["retro"]})
+
+    def test_takes_the_model_column_of_keyed_rows_only(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+            f.write("| Key | Job | Model | Effort |\n| --- | --- | --- | --- |\n"
+                    "| `story` | story building, `routine` | `sonnet` | high |\n"
+                    "| `story-critical` | money | `opus` | high |\n"
+                    "| Model | Work |\n| `haiku` | recon |\n")
+        self.addCleanup(os.unlink, f.name)
+        self.assertEqual(load_extension().agent_models(f.name), {"story": "sonnet", "story-critical": "opus"})
+
 
 if __name__ == "__main__":
     unittest.main()

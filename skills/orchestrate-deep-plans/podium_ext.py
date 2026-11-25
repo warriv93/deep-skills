@@ -60,6 +60,17 @@ ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 REPO = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 SHA = re.compile(r"^[0-9a-f]{4,64}$")
 MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/\[\]-]{0,127}$")
+AGENT_MODELS = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "deep-plan", "agent-models.md")
+ROUTING_ROW = re.compile(r"^\|\s*`([a-z][a-z-]*)`\s*\|[^|\n]*\|\s*`([^`|\n]+)`\s*\|", re.M)
+
+
+def agent_models(path=AGENT_MODELS):
+    """{row key: model} from agent-models.md's routing table, the one place a job's model is chosen."""
+    with open(path) as f:
+        return dict(ROUTING_ROW.findall(f.read()))
+
+
+MODELS = agent_models()
 PASEO_ID = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,127}$")
 
 
@@ -1000,7 +1011,7 @@ def cmd_breakdown(p, args):
                    + [k for k, v in (("context", context), ("files", g["files"]), ("tasks", g["tasks"])) if not v])
         s = {"id": sid, "title": g["title"], "summary": re.split(r"(?<=[.!?])\s", g["story"] or g["title"])[0][:200],
              "files": g["files"], "deps": deps[sid], "overlapAfter": after[sid],
-             "critical": bool(g["critical"]), "model": "opus" if g["critical"] else "sonnet",
+             "critical": bool(g["critical"]), "model": MODELS["story-critical" if g["critical"] else "story"],
              "brief": os.path.relpath(os.path.join(p.dir, "stories", mid, f"{sid}.md"), p.root)}
         text = brief_text(m, s, g, context + [heading_ref(rel, g["heading"])])
         print(f"STORY {sid} {repo} deps={','.join(s['deps']) or '-'} files={len(s['files'])} missing={','.join(missing) or '-'}")
@@ -1142,7 +1153,7 @@ def paseo(*args):
 
 
 def paseo_provider(model, _models={}):
-    """`claude/<id>` for a story's model: an id as given, else the newest one Paseo lists for opus or sonnet."""
+    """`claude/<id>` for a story's model: an id as given, else the newest one Paseo lists for its alias (opus, sonnet, haiku, fable)."""
     if "/" in model:
         return model
     if model.startswith("claude-"):
@@ -1256,7 +1267,7 @@ def launch_wave(p, stories, retry=None):
 def place(p, m, s, retry):
     """The story's worktrees, made: {milestone, story, trees, undo}, or its SKIP or FAILED line with nothing left
     made."""
-    sid, model = safe_id(s["id"]), s.get("model") or "sonnet"
+    sid, model = safe_id(s["id"]), s.get("model") or MODELS["story"]
     safe_id(m["id"])
     if not (isinstance(model, str) and MODEL.fullmatch(model)):
         return f"FAILED {sid} model {model!r}: not a model name"
@@ -1317,7 +1328,7 @@ def install(p, placed, c, name, tree):
 
 def dispatch(p, m, s, placed, retry):
     """Start the agent of a placed story and record it: its LAUNCHED, PROMPT or FAILED line."""
-    sid, model, trees = safe_id(s["id"]), s.get("model") or "sonnet", placed["trees"]
+    sid, model, trees = safe_id(s["id"]), s.get("model") or MODELS["story"], placed["trees"]
     text = story_prompt(p, m, s, retry)
     if dispatcher(p) == "paseo":
         model, home = paseo_provider(model), trees[0][2]
@@ -1409,7 +1420,7 @@ ESTIMATE = ("Once the recon note is written, re-estimate the milestone's value, 
             "(orchestrate-deep-plans' SKILL.md, Run state): effort from the code, migrations and contracts recon found, "
             "value from who the brief serves. Open your first question to the user with one line, "
             "`Value <level> · Effort <level>: <verdict>`, naming what recon changed since the cut's estimate.")
-HANDOFF_MODELS = {"plan": "opus", "ahead": "opus", "gate": "opus", "retro": "opus"}
+HANDOFF_MODELS = {"plan": MODELS["plan"], "ahead": MODELS["plan"], "gate": MODELS["gate"], "retro": MODELS["retro"]}
 FRICTION = {"retry", "failed", "conflict", "approval", "denied"}
 FINDING_FIXES = "check|pointer|standard|delete|access|script|flag|brief|model|tool"
 

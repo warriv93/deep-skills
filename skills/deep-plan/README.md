@@ -40,7 +40,7 @@ Skills it calls:
 
 `tests/run.sh` checks `scripts/gates.sh` (the contract in one call) `scripts/review-pack.sh` (one filtered diff per file for reviewer subagents) `scripts/new-clones.sh` (the `dup` gate: jscpd failing only on clones the base branch lacks) and `scripts/land.sh` (the local merge) against throwaway repos.
 
-Tools: `git` and `python3` (the mock server). Subagents are routed by cost: Haiku for recon search, the security pass and screenshot comparison, Opus for the review gates and `/diagnosing-bugs`.
+Tools: `git` and `python3` (the mock server). Subagents are routed by job in [agent-models.md](agent-models.md): Haiku to search and check, Sonnet to build and draft, Opus to plan, review and diagnose, Fable only by escalation.
 
 ## Working with the other deep skills
 
