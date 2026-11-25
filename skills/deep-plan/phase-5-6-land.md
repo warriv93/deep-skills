@@ -10,7 +10,7 @@ Compile from the ledger, `findings-phase-3.md`, `findings-phase-4.md`, `findings
 - **Inputs needed:** API keys, env vars, secrets, accounts required to run it.
 - **Next steps:** concrete follow-ups.
 
-Ask the user: merge, iterate, or park. Merge lands it on the base branch locally, with no PR unless the user asks for one.
+Ask the user through `AskUserQuestion`, three options with merge first: merge (Phase 6, landing it on the base branch locally, with no PR unless the user asks for one), iterate (back to a phase they name), or park (stop with the work on its branch).
 
 ## Phase 6 — Land it
 
