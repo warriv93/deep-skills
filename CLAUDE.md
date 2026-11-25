@@ -12,7 +12,7 @@ Done when every changed line has passed its pruning checks (single source of tru
 ## Repo conventions
 
 - A skill is a folder: `skills/<name>/SKILL.md` (frontmatter with `name`, `description`, `argument-hint`) plus sibling `phase-*.md` files reached through relative links. `install.sh` symlinks each folder into `~/.claude/skills/`.
-- A skill's name carries `deep` (`deep-plan`, `deep-app-plan`, `orchestrate-deep-plans`, `create-deep-pr`), so it never shares a name with the author's team skills in `~/gitrepos/ai-tools/simon`; `discuss` is the one exception: an identical copy lives in `~/gitrepos/ai-tools/simon/discuss`, so change both together.
+- A skill's name carries `deep` (`deep-plan`, `deep-app-plan`, `orchestrate-deep-plans`, `create-deep-pr`), so it never shares a name with the author's team skills in `~/gitrepos/ai-tools/simon`. Several of those are overlays that read this repo's skills through `~/.claude/skills/<name>/<file>`: renaming or removing a file another skill could name is a breaking change, so say so in the commit.
 - `SKILL.md` holds what every run needs; material only one phase needs goes in that phase's file.
 - Shared rules live once in `SKILL.md` under a leading word (_ledger_, _checkpoint_, _contract_, _subagent protocol_); phase files use the word and leave the definition where it is.
 - `/deep-plan`, `/deep-app-plan` and `/orchestrate-deep-plans` share `.deep-plan/`: `project.md` belongs to `/deep-app-plan`; `podium/` and `domain-stories/` to `/orchestrate-deep-plans`; every other file to `/deep-plan`.
